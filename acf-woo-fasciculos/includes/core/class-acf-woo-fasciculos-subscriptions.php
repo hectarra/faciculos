@@ -57,6 +57,7 @@ class ACF_Woo_Fasciculos_Subscriptions {
         }
 
         // Preparar para la siguiente semana
+        $this->add_product_to_subscription_order( $subscription, $plan );
         $this->prepare_next_week( $subscription, $plan );
     }
 
@@ -152,7 +153,7 @@ class ACF_Woo_Fasciculos_Subscriptions {
         
         // Si estamos en la última semana, cancelar la suscripción
         if ( $active >= ( count( $plan ) - 1 ) ) {
-            $this->complete_subscription( $subscription );
+            $this->prepare_next_week_after_renewal( $subscription, $plan, $active );        
         }
     }
 
@@ -206,6 +207,91 @@ class ACF_Woo_Fasciculos_Subscriptions {
         $subscription->save();
     }
 
+/**
+ * Agregar Producto al pedido de suscripción inicial
+ *
+ * @param WC_Subscription $subscription Suscripción.
+ * @param array           $plan Plan de fascículos.
+ * @return void
+ */
+private function add_product_to_subscription_order( $subscription, $plan ) {
+    // Obtener datos de la primera semana (índice 0)
+    $first_row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, 0 );
+    if ( ! $first_row ) {
+        return;
+    }
+
+    // Obtener el primer producto (Producto inicial)
+    $product_product = wc_get_product( intval( $first_row['product_id'] ) );
+    if ( ! $product_product ) {
+        return;
+    }
+
+    // Obtener el pedido padre de la suscripción
+    $parent_order = wc_get_order( $subscription->get_parent_id() );
+    if ( ! $parent_order ) {
+        return;
+    }
+
+    // Agregar product al pedido existente
+    $qty = 1;
+    $product_price = floatval( $first_row['price'] );
+    
+    // Crear item para product
+    $item = new WC_Order_Item_Product();
+    $item->set_product( $product_product );
+    $item->set_name( $product_product->get_name() );
+    $item->set_quantity( $qty );
+    $item->set_subtotal( $product_price * $qty );
+    $item->set_total( $product_price * $qty );
+    $item->set_tax_class( $product_product->get_tax_class() );
+    
+    // Agregar metadatos
+    $item->add_meta_data( '_product_item', 'yes' );
+    $item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, 0 );
+    $item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
+    
+    // Guardar item
+    $item->save();
+    
+    // Agregar al pedido
+    $parent_order->add_item( $item );
+    
+    // Recalcular totales del pedido
+    $parent_order->calculate_totals();
+    $parent_order->save();
+
+    // Agregar nota informativa
+    $subscription->add_order_note( sprintf(
+        /* translators: 1: product name, 2: price */
+        __( '📦 Producto inicial agregado al pedido: %1$s — %2$s', 'acf-woo-fasciculos' ),
+        $product_product->get_name(),
+        ACF_Woo_Fasciculos_Utils::format_price( $product_price )
+    ));
+}
+
+/**
+ * Preparar la suscripción para la siguiente renovación después de una renovación
+ *
+ * @param WC_Subscription $subscription Suscripción.
+ * @param array           $plan Plan de fascículos.
+ * @param int             $current_index Índice actual.
+ * @return void
+ */
+private function prepare_next_week_after_renewal( $subscription, $plan, $current_index ) {
+    // Calcular el siguiente índice
+    $next_index = $current_index + 1;
+    $next_row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $next_index );
+
+    if ( $next_row ) {
+        // Hay siguiente semana, preparar la suscripción
+        $this->update_subscription_for_next_week( $subscription, $next_index, $next_row, $plan );
+    } else {
+        // No hay más semanas, completar suscripción
+        $this->complete_subscription( $subscription );
+    }
+}
+
     /**
      * Preparar la suscripción para la siguiente semana
      *
@@ -246,8 +332,7 @@ class ACF_Woo_Fasciculos_Subscriptions {
         // Agregar nota informativa
         $subscription->add_order_note( sprintf(
             /* translators: 1: next week number, 2: total weeks, 3: product name, 4: price */
-            __( '🎉 Suscripción activada - Semana 1 completada. Próxima renovación (semana %1$d/%2$d): %3$s — %4$s', 'acf-woo-fasciculos' ),
-            $next_index + 1,
+            __( '🔄 Suscripción actualizada para próxima renovación (semana %1$d/%2$d): %3$s — %4$s', 'acf-woo-fasciculos' ),            $next_index + 1,
             count( $plan ),
             $next_product_name,
             ACF_Woo_Fasciculos_Utils::format_price( $next_row['price'] )
@@ -309,6 +394,7 @@ class ACF_Woo_Fasciculos_Subscriptions {
 
         // Recalcular totales
         $subscription->calculate_totals();
+        $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $week_index );
         $subscription->save();
     }
 
