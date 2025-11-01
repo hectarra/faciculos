@@ -1,0 +1,139 @@
+/**
+ * Estilos CSS para ACF + Woo Subscriptions Fascículos
+ *
+ * @package ACF_Woo_Fasciculos
+ * @since 3.0.0
+ */
+
+/* Contenedor principal del plan de fascículos */
+.acf-wcs-fasciculos {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f9f9f9;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+}
+
+/* Título del plan */
+.acf-wcs-fasciculos h3 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* Tabla del plan */
+.acf-wcs-fasciculos .shop_table {
+    margin-bottom: 15px;
+    background: #fff;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.acf-wcs-fasciculos .shop_table th {
+    background: #f7f7f7;
+    font-weight: 600;
+    text-align: left;
+    padding: 12px;
+    border-bottom: 2px solid #e5e5e5;
+}
+
+.acf-wcs-fasciculos .shop_table td {
+    padding: 12px;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.acf-wcs-fasciculos .shop_table tr:last-child td {
+    border-bottom: none;
+}
+
+.acf-wcs-fasciculos .shop_table tr:nth-child(even) {
+    background: #f9f9f9;
+}
+
+/* Descripción del plan */
+.acf-wcs-fasciculos .description {
+    font-size: 14px;
+    color: #666;
+    font-style: italic;
+    margin: 0;
+}
+
+/* Información del fascículo en el carrito */
+.cart_item .fasciculo-info {
+    font-size: 13px;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Información del fascículo en el checkout */
+.checkout .fasciculo-info {
+    font-size: 13px;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Información del fascículo en emails */
+.woocommerce .fasciculo-info {
+    font-size: 13px;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Panel de administración - Información del plan */
+.fasciculos-info {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f9f9f9;
+    border-left: 3px solid #2271b1;
+    font-size: 13px;
+}
+
+.fasciculos-info strong {
+    color: #2271b1;
+}
+
+/* Responsive - Tabla */
+@media screen and (max-width: 768px) {
+    .acf-wcs-fasciculos .shop_table {
+        font-size: 14px;
+    }
+    
+    .acf-wcs-fasciculos .shop_table th,
+    .acf-wcs-fasciculos .shop_table td {
+        padding: 8px;
+    }
+}
+
+/* Responsive - Contenedor */
+@media screen and (max-width: 480px) {
+    .acf-wcs-fasciculos {
+        padding: 15px;
+    }
+    
+    .acf-wcs-fasciculos h3 {
+        font-size: 16px;
+    }
+}
+
+/* Animaciones suaves */
+.acf-wcs-fasciculos {
+    transition: all 0.3s ease;
+}
+
+/* Hover effects */
+.acf-wcs-fasciculos:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Print styles */
+@media print {
+    .acf-wcs-fasciculos {
+        background: #fff;
+        border: 1px solid #000;
+    }
+    
+    .acf-wcs-fasciculos .shop_table {
+        background: #fff;
+    }
+}

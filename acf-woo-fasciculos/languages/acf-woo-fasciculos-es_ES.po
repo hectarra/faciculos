@@ -1,0 +1,192 @@
+# Translation of ACF + Woo Subscriptions Fascículos in Spanish (Spain)
+# This file is distributed under the same license as the ACF + Woo Subscriptions Fascículos package.
+msgid ""
+msgstr ""
+"Project-Id-Version: ACF + Woo Subscriptions Fascículos 3.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/acf-woo-fasciculos\n"
+"POT-Creation-Date: 2024-01-01 00:00:00+00:00\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: 2024-01-01 00:00:00+00:00\n"
+"Language-Team: Spanish (Spain)\n"
+"Language: es_ES\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#: includes/class-acf-woo-fasciculos.php:45
+msgid "Plan de fascículos (semanas)"
+msgstr "Plan de fascículos (semanas)"
+
+#: includes/class-acf-woo-fasciculos.php:46
+msgid "#"
+msgstr "#"
+
+#: includes/class-acf-woo-fasciculos.php:47
+msgid "Producto"
+msgstr "Producto"
+
+#: includes/class-acf-woo-fasciculos.php:48
+msgid "Precio"
+msgstr "Precio"
+
+#: includes/class-acf-woo-fasciculos.php:49
+msgid "Nota"
+msgstr "Nota"
+
+#: includes/class-acf-woo-fasciculos.php:56
+msgid "En la compra se cobra la Semana 1. En cada renovación se avanza a la siguiente semana. La suscripción se cancela automáticamente al completar todas las semanas."
+msgstr "En la compra se cobra la Semana 1. En cada renovación se avanza a la siguiente semana. La suscripción se cancela automáticamente al completar todas las semanas."
+
+#: includes/class-acf-woo-fasciculos.php:57
+msgid "ID %d"
+msgstr "ID %d"
+
+#: includes/class-acf-woo-fasciculos.php:58
+msgid "Fascículo (semana actual)"
+msgstr "Fascículo (semana actual)"
+
+#: includes/class-acf-woo-fasciculos.php:59
+msgid "Plan de %d semana"
+msgid_plural "Plan de %d semanas"
+msgstr[0] "Plan de %d semana"
+msgstr[1] "Plan de %d semanas"
+
+#: includes/class-acf-woo-fasciculos.php:60
+msgid "Sin plan de fascículos"
+msgstr "Sin plan de fascículos"
+
+#: includes/class-acf-woo-fasciculos.php:61
+msgid "🔁 Renovación confirmada (pedido #%1$d → %2$s). Semana %3$d/%4$d cobrada: %5$s. Próxima renovación (semana %6$d/%7$d): %8$s — %9$s"
+msgstr "🔁 Renovación confirmada (pedido #%1$d → %2$s). Semana %3$d/%4$d cobrada: %5$s. Próxima renovación (semana %6$d/%7$d): %8$s — %9$s"
+
+#: includes/class-acf-woo-fasciculos.php:62
+msgid "🎉 Suscripción activada - Semana 1 completada. Próxima renovación (semana %1$d/%2$d): %3$s — %4$s"
+msgstr "🎉 Suscripción activada - Semana 1 completada. Próxima renovación (semana %1$d/%2$d): %3$s — %4$s"
+
+#: includes/class-acf-woo-fasciculos.php:63
+msgid "⚠️ Plan de 1 semana. La suscripción se cancelará en la próxima renovación."
+msgstr "⚠️ Plan de 1 semana. La suscripción se cancelará en la próxima renovación."
+
+#: includes/class-acf-woo-fasciculos.php:64
+msgid "📦 Fascículo semana %1$d/%2$d: %3$s — %4$s"
+msgstr "📦 Fascículo semana %1$d/%2$d: %3$s — %4$s"
+
+#: includes/class-acf-woo-fasciculos.php:65
+msgid "🎉 Plan de fascículos completado tras esta renovación. La suscripción se cancelará."
+msgstr "🎉 Plan de fascículos completado tras esta renovación. La suscripción se cancelará."
+
+#: includes/class-acf-woo-fasciculos.php:66
+msgid "Plan completado al confirmar la renovación."
+msgstr "Plan completado al confirmar la renovación."
+
+#: includes/class-acf-woo-fasciculos.php:67
+msgid "Plan de fascículos completado. Todas las semanas han sido enviadas."
+msgstr "Plan de fascículos completado. Todas las semanas han sido enviadas."
+
+#: includes/class-acf-woo-fasciculos.php:68
+msgid "Semana actual fascículos: %d"
+msgstr "Semana actual fascículos: %d"
+
+#: includes/class-acf-woo-fasciculos.php:69
+msgid "Plan de Fascículos"
+msgstr "Plan de Fascículos"
+
+#: includes/class-acf-woo-fasciculos.php:70
+msgid "Semana actual: %1$s de %2$s"
+msgstr "Semana actual: %1$s de %2$s"
+
+#: includes/class-acf-woo-fasciculos.php:71
+msgid "Producto:"
+msgstr "Producto:"
+
+#: includes/class-acf-woo-fasciculos.php:72
+msgid "Precio: %s"
+msgstr "Precio: %s"
+
+#: includes/class-acf-woo-fasciculos.php:73
+msgid "Nota:"
+msgstr "Nota:"
+
+#: includes/class-acf-woo-fasciculos.php:74
+msgid "Semana Actual"
+msgstr "Semana Actual"
+
+#: includes/class-acf-woo-fasciculos.php:75
+msgid "ACF + Woo Subscriptions Fascículos"
+msgstr "ACF + Woo Subscriptions Fascículos"
+
+#: includes/class-acf-woo-fasciculos.php:76
+msgid "Configuración"
+msgstr "Configuración"
+
+#: includes/class-acf-woo-fasciculos.php:77
+msgid "Documentación"
+msgstr "Documentación"
+
+#: includes/class-acf-woo-fasciculos.php:78
+msgid "Soporte"
+msgstr "Soporte"
+
+#: includes/class-acf-woo-fasciculos.php:79
+msgid "Valorar"
+msgstr "Valorar"
+
+#: includes/class-acf-woo-fasciculos.php:80
+msgid "ACF + Woo Subscriptions Fascículos requiere PHP versión %s o superior. Tu versión actual es %s."
+msgstr "ACF + Woo Subscriptions Fascículos requiere PHP versión %s o superior. Tu versión actual es %s."
+
+#: includes/class-acf-woo-fasciculos.php:81
+msgid "ACF + Woo Subscriptions Fascículos requiere WooCommerce."
+msgstr "ACF + Woo Subscriptions Fascículos requiere WooCommerce."
+
+#: includes/class-acf-woo-fasciculos.php:82
+msgid "ACF + Woo Subscriptions Fascículos requiere WooCommerce versión %s o superior."
+msgstr "ACF + Woo Subscriptions Fascículos requiere WooCommerce versión %s o superior."
+
+#: includes/class-acf-woo-fasciculos.php:83
+msgid "ACF + Woo Subscriptions Fascículos requiere WooCommerce Subscriptions."
+msgstr "ACF + Woo Subscriptions Fascículos requiere WooCommerce Subscriptions."
+
+#: includes/class-acf-woo-fasciculos.php:84
+msgid "ACF + Woo Subscriptions Fascículos requiere Advanced Custom Fields (ACF)."
+msgstr "ACF + Woo Subscriptions Fascículos requiere Advanced Custom Fields (ACF)."
+
+#: includes/class-acf-woo-fasciculos.php:85
+msgid "El plugin no se puede activar porque no cumple con los requisitos necesarios."
+msgstr "El plugin no se puede activar porque no cumple con los requisitos necesarios."
+
+#: includes/class-acf-woo-fasciculos.php:86
+msgid "Error de Activación"
+msgstr "Error de Activación"
+
+#: includes/core/class-acf-woo-fasciculos-acf.php:25
+msgid "Plan de Fascículos"
+msgstr "Plan de Fascículos"
+
+#: includes/core/class-acf-woo-fasciculos-acf.php:29
+msgid "Fascículos (semanas)"
+msgstr "Fascículos (semanas)"
+
+#: includes/core/class-acf-woo-fasciculos-acf.php:30
+msgid "Define el plan semanal: producto a enviar y precio a cobrar en cada semana."
+msgstr "Define el plan semanal: producto a enviar y precio a cobrar en cada semana."
+
+#: includes/core/class-acf-woo-fasciculos-acf.php:38
+msgid "Añadir semana"
+msgstr "Añadir semana"
+
+#: includes/core/class-acf-woo-fasciculos-acf.php:45
+msgid "Producto de la semana"
+msgstr "Producto de la semana"
+
+#: includes/core/class-acf-woo-fasciculos-acf.php:54
+msgid "Precio de la semana"
+msgstr "Precio de la semana"
+
+#: includes/core/class-acf-woo-fasciculos-acf.php:63
+msgid "Nota"
+msgstr "Nota"
+
+#: includes/core/class-acf-woo-fasciculos-cart.php:95
+msgid "%1$s — %2$s (Semana %3$d de %4$d)"
+msgstr "%1$s — %2$s (Semana %3$d de %4$d)"
