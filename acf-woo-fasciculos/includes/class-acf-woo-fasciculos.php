@@ -16,11 +16,53 @@ if ( ! defined( 'ABSPATH' ) ) {
 class ACF_Woo_Fasciculos {
 
     /**
-     * Única instancia de la clase
+     * Única instancia del plugin (patrón Singleton)
      *
      * @var ACF_Woo_Fasciculos
      */
     private static $instance = null;
+
+    /**
+     * Instancia del manejador de productos
+     *
+     * @var ACF_Woo_Fasciculos_Products
+     */
+    private $products_handler;
+
+    /**
+     * Instancia del manejador de suscripciones
+     *
+     * @var ACF_Woo_Fasciculos_Subscriptions
+     */
+    private $subscriptions_handler;
+
+    /**
+     * Instancia del manejador del carrito
+     *
+     * @var ACF_Woo_Fasciculos_Cart
+     */
+    private $cart_handler;
+
+    /**
+     * Instancia del manejador de pedidos
+     *
+     * @var ACF_Woo_Fasciculos_Orders
+     */
+    private $orders_handler;
+
+    /**
+     * Instancia del manejador de ACF
+     *
+     * @var ACF_Woo_Fasciculos_ACF
+     */
+    private $acf_handler;
+
+    /**
+     * Instancia del manejador de administración
+     *
+     * @var ACF_Woo_Fasciculos_Admin
+     */
+    private $admin_handler;
 
     /**
      * Constantes para metadatos
@@ -29,17 +71,9 @@ class ACF_Woo_Fasciculos {
     const META_ACTIVE_INDEX = '_fasciculo_active_index';
     const META_PLAN_CACHE = '_fasciculos_plan_cache';
     const META_FIRST_UPDATE = '_fasciculo_first_update_done';
-    const META_PLAN_COMPLETED = '_fasciculo_plan_completed';
 
     /**
-     * Instancias de las clases handler
-     *
-     * @var array
-     */
-    private $handlers = array();
-
-    /**
-     * Obtener la única instancia de la clase
+     * Obtener la única instancia del plugin
      *
      * @return ACF_Woo_Fasciculos
      */
@@ -51,282 +85,129 @@ class ACF_Woo_Fasciculos {
     }
 
     /**
-     * Constructor
+     * Constructor privado (patrón Singleton)
      */
     private function __construct() {
         $this->load_dependencies();
         $this->init_handlers();
         $this->setup_hooks();
-        $this->setup_hpos_compatibility();
     }
 
     /**
-     * Cargar archivos de dependencias
+     * Cargar dependencias del plugin
      *
      * @return void
      */
     private function load_dependencies() {
-        require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-utils.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-products.php';
-        require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-cart.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-subscriptions.php';
+        require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-cart.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-orders.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-acf.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/admin/class-acf-woo-fasciculos-admin.php';
     }
 
     /**
-     * Inicializar clases handler
+     * Inicializar manejadores
      *
      * @return void
      */
     private function init_handlers() {
-        $this->handlers['utils'] = new ACF_Woo_Fasciculos_Utils();
-        $this->handlers['products'] = new ACF_Woo_Fasciculos_Products();
-        $this->handlers['cart'] = new ACF_Woo_Fasciculos_Cart();
-        $this->handlers['subscriptions'] = new ACF_Woo_Fasciculos_Subscriptions();
-        $this->handlers['orders'] = new ACF_Woo_Fasciculos_Orders();
-        $this->handlers['acf'] = new ACF_Woo_Fasciculos_ACF();
-        $this->handlers['admin'] = new ACF_Woo_Fasciculos_Admin();
+        $this->products_handler = new ACF_Woo_Fasciculos_Products();
+        $this->subscriptions_handler = new ACF_Woo_Fasciculos_Subscriptions();
+        $this->cart_handler = new ACF_Woo_Fasciculos_Cart();
+        $this->orders_handler = new ACF_Woo_Fasciculos_Orders();
+        $this->acf_handler = new ACF_Woo_Fasciculos_ACF();
+        $this->admin_handler = new ACF_Woo_Fasciculos_Admin();
     }
 
     /**
-     * Configurar hooks de WordPress
+     * Configurar hooks del plugin
      *
      * @return void
      */
     private function setup_hooks() {
-        // Enqueue scripts y estilos
-        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
-        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
+        // Hooks de productos
+        add_action( 'woocommerce_single_product_summary', array( $this->products_handler, 'render_plan_table' ), 25 );
 
-        // Ocultar metadatos internos
-        add_filter( 'woocommerce_hidden_order_itemmeta', array( $this, 'hide_internal_meta' ) );
+        // Hooks del carrito
+        add_filter( 'woocommerce_add_cart_item_data', array( $this->cart_handler, 'attach_plan_to_cart_item' ), 10, 3 );
+        add_filter( 'woocommerce_get_item_data', array( $this->cart_handler, 'display_plan_in_cart' ), 10, 2 );
+        add_action( 'woocommerce_before_calculate_totals', array( $this->cart_handler, 'override_cart_prices' ), 20 );
 
-        // Manejo de cancelación de suscripciones
-        add_action( 'acf_woo_fasciculos_cancel_subscription', array( $this, 'cancel_subscription' ), 10, 1 );
+        // Hooks de pedidos
+        add_action( 'woocommerce_checkout_create_order_line_item', array( $this->orders_handler, 'save_plan_to_order_item' ), 10, 4 );
+        add_action( 'woocommerce_checkout_subscription_created', array( $this->orders_handler, 'copy_plan_to_subscription' ), 10, 4 );
+        add_action( 'woocommerce_subscription_renewal_order_created', array( $this->orders_handler, 'on_renewal_order_created' ), 10, 2 );
+        add_action( 'woocommerce_order_status_changed', array( $this->orders_handler, 'on_order_status_progresses_renewal' ), 10, 4 );
 
-        // HPOS compatibility hooks
-        add_action( 'woocommerce_init', array( $this, 'setup_hpos_hooks' ) );
+        // Hooks de suscripciones
+        add_action( 'woocommerce_subscription_activated', array( $this->subscriptions_handler, 'on_subscription_activated' ), 10, 1 );
+        add_action( 'woocommerce_subscription_status_active', array( $this->subscriptions_handler, 'on_subscription_activated' ), 10, 1 );
+        add_action( 'woocommerce_payment_complete', array( $this->subscriptions_handler, 'on_payment_complete_check_subscription' ), 10, 1 );
+        add_action( 'woocommerce_scheduled_subscription_payment', array( $this->subscriptions_handler, 'check_if_plan_completed' ), 5, 1 );
+        add_filter( 'wcs_renewal_order_items', array( $this->subscriptions_handler, 'modify_renewal_items_before_copy' ), 10, 3 );
+
+        // Hooks de ACF
+        add_action( 'acf/init', array( $this->acf_handler, 'register_fields' ) );
+
+        // Hooks de administración
+        add_action( 'woocommerce_admin_order_item_values', array( $this->admin_handler, 'show_active_week' ), 10, 3 );
+        add_filter( 'woocommerce_hidden_order_itemmeta', array( $this->admin_handler, 'hide_internal_meta' ) );
+        add_action( 'woocommerce_after_order_itemmeta', array( $this->admin_handler, 'display_plan_info' ), 10, 3 );
     }
 
     /**
-     * Setup HPOS (High-Performance Order Storage) compatibility
-     *
-     * @return void
-     */
-    private function setup_hpos_compatibility() {
-        // Ensure compatibility is declared early
-        add_action( 'before_woocommerce_init', function() {
-            if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
-                \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
-            }
-        } );
-    }
-
-    /**
-     * Setup HPOS-specific hooks
-     *
-     * @return void
-     */
-    public function setup_hpos_hooks() {
-        // HPOS compatibility for order meta
-        if ( $this->is_hpos_enabled() ) {
-            // Use modern order methods when HPOS is enabled
-            add_filter( 'woocommerce_order_get_meta', array( $this, 'handle_hpos_order_meta' ), 10, 3 );
-            add_filter( 'woocommerce_order_add_meta_data', array( $this, 'handle_hpos_order_add_meta' ), 10, 3 );
-            add_filter( 'woocommerce_order_update_meta_data', array( $this, 'handle_hpos_order_update_meta' ), 10, 4 );
-        }
-    }
-
-    /**
-     * Check if HPOS is enabled
-     *
-     * @return bool
-     */
-    public function is_hpos_enabled() {
-        if ( ! class_exists( 'Automattic\WooCommerce\Utilities\OrderUtil' ) ) {
-            return false;
-        }
-
-        return \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
-    }
-
-    /**
-     * Handle HPOS order meta retrieval
-     *
-     * @param mixed $value Meta value.
-     * @param WC_Order $order Order object.
-     * @param string $meta_key Meta key.
-     * @return mixed
-     */
-    public function handle_hpos_order_meta( $value, $order, $meta_key ) {
-        // Ensure our custom meta works with HPOS
-        if ( in_array( $meta_key, array( self::META_PLAN_KEY, self::META_ACTIVE_INDEX, self::META_PLAN_CACHE ) ) ) {
-            return $order->get_meta( $meta_key, true );
-        }
-        return $value;
-    }
-
-    /**
-     * Handle HPOS order meta addition
-     *
-     * @param string $meta_key Meta key.
-     * @param mixed $meta_value Meta value.
-     * @param WC_Order $order Order object.
-     * @return void
-     */
-    public function handle_hpos_order_add_meta( $meta_key, $meta_value, $order ) {
-        // Ensure our custom meta works with HPOS
-        if ( in_array( $meta_key, array( self::META_PLAN_KEY, self::META_ACTIVE_INDEX, self::META_PLAN_CACHE ) ) ) {
-            $order->add_meta_data( $meta_key, $meta_value, true );
-        }
-    }
-
-    /**
-     * Handle HPOS order meta update
-     *
-     * @param string $meta_key Meta key.
-     * @param mixed $meta_value Meta value.
-     * @param int $meta_id Meta ID.
-     * @param WC_Order $order Order object.
-     * @return void
-     */
-    public function handle_hpos_order_update_meta( $meta_key, $meta_value, $meta_id, $order ) {
-        // Ensure our custom meta works with HPOS
-        if ( in_array( $meta_key, array( self::META_PLAN_KEY, self::META_ACTIVE_INDEX, self::META_PLAN_CACHE ) ) ) {
-            $order->update_meta_data( $meta_key, $meta_value );
-        }
-    }
-
-    /**
-     * Enqueue scripts y estilos del frontend
-     *
-     * @return void
-     */
-    public function enqueue_scripts() {
-        if ( is_product() ) {
-            wp_enqueue_style(
-                'acf-woo-fasciculos',
-                ACF_WOO_FASCICULOS_PLUGIN_URL . 'assets/css/acf-woo-fasciculos.css',
-                array(),
-                ACF_WOO_FASCICULOS_VERSION
-            );
-        }
-    }
-
-    /**
-     * Enqueue scripts y estilos del admin
-     *
-     * @return void
-     */
-    public function enqueue_admin_scripts() {
-        wp_enqueue_style(
-            'acf-woo-fasciculos-admin',
-            ACF_WOO_FASCICULOS_PLUGIN_URL . 'assets/css/acf-woo-fasciculos.css',
-            array(),
-            ACF_WOO_FASCICULOS_VERSION
-        );
-    }
-
-    /**
-     * Ocultar metadatos internos del pedido
-     *
-     * @param array $meta_keys Claves de metadatos a ocultar.
-     * @return array
-     */
-    public function hide_internal_meta( $meta_keys ) {
-        $meta_keys[] = '_fasciculos_plan';
-        $meta_keys[] = '_fasciculo_active_index';
-        $meta_keys[] = '_fasciculos_plan_cache';
-        $meta_keys[] = '_fasciculo_first_update_done';
-        $meta_keys[] = '_fasciculo_plan_completed';
-
-        return $meta_keys;
-    }
-
-    /**
-     * Cancelar suscripción
-     *
-     * @param int $subscription_id ID de la suscripción.
-     * @return void
-     */
-    public function cancel_subscription( $subscription_id ) {
-        $subscription = wcs_get_subscription( $subscription_id );
-
-        if ( ! $subscription ) {
-            return;
-        }
-
-        // Verificar que el plan esté completado
-        if ( 'yes' !== $subscription->get_meta( '_fasciculo_plan_completed' ) ) {
-            return;
-        }
-
-        // Cancelar la suscripción
-        $subscription->update_status( 'cancelled', __( 'Plan de fascículos completado. Todas las semanas han sido enviadas.', 'acf-woo-fasciculos' ) );
-    }
-
-    /**
-     * Obtener handler de utilidades
-     *
-     * @return ACF_Woo_Fasciculos_Utils
-     */
-    public function utils() {
-        return $this->handlers['utils'];
-    }
-
-    /**
-     * Obtener handler de productos
+     * Obtener el manejador de productos
      *
      * @return ACF_Woo_Fasciculos_Products
      */
-    public function products() {
-        return $this->handlers['products'];
+    public function get_products_handler() {
+        return $this->products_handler;
     }
 
     /**
-     * Obtener handler del carrito
-     *
-     * @return ACF_Woo_Fasciculos_Cart
-     */
-    public function cart() {
-        return $this->handlers['cart'];
-    }
-
-    /**
-     * Obtener handler de suscripciones
+     * Obtener el manejador de suscripciones
      *
      * @return ACF_Woo_Fasciculos_Subscriptions
      */
-    public function subscriptions() {
-        return $this->handlers['subscriptions'];
+    public function get_subscriptions_handler() {
+        return $this->subscriptions_handler;
     }
 
     /**
-     * Obtener handler de pedidos
+     * Obtener el manejador del carrito
+     *
+     * @return ACF_Woo_Fasciculos_Cart
+     */
+    public function get_cart_handler() {
+        return $this->cart_handler;
+    }
+
+    /**
+     * Obtener el manejador de pedidos
      *
      * @return ACF_Woo_Fasciculos_Orders
      */
-    public function orders() {
-        return $this->handlers['orders'];
+    public function get_orders_handler() {
+        return $this->orders_handler;
     }
 
     /**
-     * Obtener handler de ACF
+     * Obtener el manejador de ACF
      *
      * @return ACF_Woo_Fasciculos_ACF
      */
-    public function acf() {
-        return $this->handlers['acf'];
+    public function get_acf_handler() {
+        return $this->acf_handler;
     }
 
     /**
-     * Obtener handler de administración
+     * Obtener el manejador de administración
      *
      * @return ACF_Woo_Fasciculos_Admin
      */
-    public function admin() {
-        return $this->handlers['admin'];
+    public function get_admin_handler() {
+        return $this->admin_handler;
     }
 }

@@ -1,6 +1,6 @@
 <?php
 /**
- * Clase para manejar pedidos y renovaciones
+ * Manejador de pedidos para el plugin ACF + Woo Subscriptions Fascículos
  *
  * @package ACF_Woo_Fasciculos
  * @since 3.0.0
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Clase para manejar pedidos y renovaciones
+ * Clase para manejar toda la funcionalidad relacionada con pedidos
  */
 class ACF_Woo_Fasciculos_Orders {
 
@@ -19,337 +19,285 @@ class ACF_Woo_Fasciculos_Orders {
      * Constructor
      */
     public function __construct() {
-        $this->init_hooks();
+        // Inicializar cualquier configuración necesaria
     }
 
     /**
-     * Inicializar hooks
+     * Guardar el plan de fascículos en un item del pedido
      *
-     * @return void
-     */
-    private function init_hooks() {
-        // Guardar el plan en el pedido cuando se crea
-        add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'save_plan_to_order_item' ), 10, 4 );
-
-        // Copiar el plan a la suscripción cuando se crea desde el pedido
-        add_action( 'woocommerce_checkout_subscription_created', array( $this, 'copy_plan_to_subscription' ), 10, 3 );
-
-        // Manejar la creación de pedidos de renovación
-        add_action( 'woocommerce_subscription_renewal_payment_complete', array( $this, 'handle_renewal_payment_complete' ), 10, 2 );
-
-        // Agregar información del plan a los pedidos
-        add_action( 'woocommerce_admin_order_data_after_order_details', array( $this, 'add_plan_info_to_order_admin' ), 10, 1 );
-
-        // Mostrar información del fascículo en los emails
-        add_action( 'woocommerce_email_after_order_table', array( $this, 'add_plan_info_to_email' ), 10, 4 );
-
-        // HPOS compatibility: Use the new order storage methods
-        add_action( 'woocommerce_before_order_object_save', array( $this, 'handle_hpos_order_save' ), 10, 2 );
-    }
-
-    /**
-     * Guardar el plan de fascículos en el item del pedido
+     * Este método se ejecuta cuando se crea un item de pedido durante el checkout.
+     * Guarda el plan de fascículos como metadatos del item.
      *
      * @param WC_Order_Item_Product $item Item del pedido.
-     * @param string $cart_item_key Clave del item en el carrito.
-     * @param array $values Valores del item del carrito.
-     * @param WC_Order $order Pedido.
+     * @param string                $cart_item_key Clave del item del carrito.
+     * @param array                 $values Valores del item del carrito.
+     * @param WC_Order              $order Pedido.
      * @return void
      */
     public function save_plan_to_order_item( $item, $cart_item_key, $values, $order ) {
-        if ( ! isset( $values['fasciculos_plan'] ) ) {
-            return;
+        // Guardar el plan como JSON
+        if ( isset( $values[ ACF_Woo_Fasciculos::META_PLAN_CACHE ] ) ) {
+            $item->add_meta_data(
+                ACF_Woo_Fasciculos::META_PLAN_CACHE,
+                wp_json_encode( $values[ ACF_Woo_Fasciculos::META_PLAN_CACHE ] ),
+                false
+            );
         }
 
-        $plan = $values['fasciculos_plan'];
-
-        // Guardar el plan completo como metadata del item
-        $item->add_meta_data( '_fasciculos_plan', $plan );
-
-        // Guardar el índice activo inicial (0 para la primera semana)
-        $item->add_meta_data( '_fasciculo_active_index', 0 );
-
-        // Guardar información de la semana actual
-        if ( isset( $plan[0] ) ) {
-            $current_week = $plan[0];
-            $item->add_meta_data( 'Semana actual', sprintf( 'Semana 1 de %d', count( $plan ) ) );
-
-            if ( isset( $current_week['product'] ) && $current_week['product'] ) {
-                $item->add_meta_data( 'Producto de la semana', get_the_title( $current_week['product'] ) );
-            }
+        // Guardar el índice activo
+        if ( isset( $values[ ACF_Woo_Fasciculos::META_ACTIVE_INDEX ] ) ) {
+            $item->add_meta_data(
+                ACF_Woo_Fasciculos::META_ACTIVE_INDEX,
+                intval( $values[ ACF_Woo_Fasciculos::META_ACTIVE_INDEX ] ),
+                false
+            );
         }
     }
 
     /**
      * Copiar el plan de fascículos a la suscripción
      *
+     * Este método se ejecuta cuando se crea una suscripción desde un pedido.
+     * Copia el plan de fascículos desde los items del pedido a la suscripción.
+     *
      * @param WC_Subscription $subscription Suscripción creada.
-     * @param WC_Order $order Pedido.
-     * @param int $recurring_cart Cart recurrente.
+     * @param WC_Order        $order Pedido original.
+     * @param mixed           $recurring_cart Carrito recurrente.
      * @return void
      */
-    public function copy_plan_to_subscription( $subscription, $order, $recurring_cart ) {
-        // Obtener el plan del pedido
-        $order_items = $order->get_items();
+    public function copy_plan_to_subscription( $subscription, $order, $recurring_cart = null ) {
+        // Validar suscripción
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+            return;
+        }
 
-        foreach ( $order_items as $item ) {
-            $plan = $item->get_meta( '_fasciculos_plan' );
+        // Verificar que la suscripción tenga un ID válido
+        if ( ! $subscription->get_id() ) {
+            return;
+        }
 
-            if ( ! empty( $plan ) ) {
-                // Copiar el plan a la suscripción
-                $subscription->add_meta_data( '_fasciculos_plan', $plan );
-                $subscription->add_meta_data( '_fasciculo_active_index', 0 );
-                $subscription->add_meta_data( '_fasciculos_plan_cache', wp_json_encode( $plan ) );
-                $subscription->save();
+        // Validar pedido
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $order ) ) {
+            return;
+        }
 
-                // También copiar a los items de la suscripción
-                foreach ( $subscription->get_items() as $subscription_item ) {
-                    $subscription_item->add_meta_data( '_fasciculos_plan', $plan );
-                    $subscription_item->add_meta_data( '_fasciculo_active_index', 0 );
-                    $subscription_item->save_meta_data();
-                }
+        $plan_copied = false;
 
-                break;
+        // Recorrer los items del pedido
+        foreach ( $order->get_items() as $order_item_id => $order_item ) {
+            // Copiar el plan
+            $plan_json = $order_item->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+            if ( $plan_json ) {
+                $subscription->update_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, $plan_json );
+                $plan_copied = true;
             }
+
+            // Copiar el índice activo
+            $index = $order_item->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
+            if ( '' !== $index && $index !== null ) {
+                $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, intval( $index ) );
+            } else {
+                $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, 0 );
+            }
+        }
+
+        // Guardar cambios si se copió algún plan
+        if ( $plan_copied ) {
+            $subscription->save();
         }
     }
 
     /**
-     * Manejar el pago completo de una renovación
+     * Manejar la creación de un pedido de renovación
      *
-     * @param WC_Subscription $subscription Suscripción.
-     * @param WC_Order $order Pedido de renovación.
+     * @param WC_Order        $renewal_order Pedido de renovación.
+     * @param WC_Subscription $subscription Suscripción relacionada.
      * @return void
      */
-    public function handle_renewal_payment_complete( $subscription, $order ) {
-        // Obtener el plan actual
-        $plan = $subscription->get_meta( '_fasciculos_plan' );
-        $active_index = intval( $subscription->get_meta( '_fasciculo_active_index' ) );
-
-        if ( empty( $plan ) || ! is_array( $plan ) ) {
+    public function on_renewal_order_created( $renewal_order, $subscription ) {
+        // Validar pedido y suscripción
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $renewal_order ) || ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
             return;
         }
 
-        // Avanzar al siguiente fascículo
-        $next_index = $active_index + 1;
+        // Obtener el plan de la suscripción
+        $plan = $this->get_subscription_plan( $subscription );
+        if ( empty( $plan ) ) {
+            return;
+        }
 
-        // Verificar si hay más semanas en el plan
-        if ( $next_index < count( $plan ) ) {
-            // Actualizar el índice activo
-            $subscription->update_meta_data( '_fasciculo_active_index', $next_index );
-            $subscription->save();
+        // Obtener el índice activo actual
+        $active = $this->get_active_index( $subscription );
+        
+        // Obtener la información de la semana actual
+        $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $active );
+        if ( ! $row ) {
+            return;
+        }
 
-            // Actualizar el próximo item de la suscripción
-            $this->update_subscription_item_for_next_week( $subscription, $plan, $next_index );
+        // Recalcular totales del pedido
+        $renewal_order->calculate_totals();
+        $renewal_order->save();
 
-            // Agregar nota informativa al pedido
-            $next_week = $plan[ $next_index ];
-            $order->add_order_note( sprintf(
-                __( '🔁 Renovación confirmada (pedido #%1$d → %2$s). Semana %3$d/%4$d cobrada: %5$s. Próxima renovación (semana %6$d/%7$d): %8$s — %9$s', 'acf-woo-fasciculos' ),
-                $order->get_id(),
-                $order->get_formatted_order_total(),
-                $active_index + 1,
-                count( $plan ),
-                isset( $next_week['price'] ) ? wc_price( $next_week['price'] ) : '',
-                $next_index + 1,
-                count( $plan ),
-                isset( $next_week['product'] ) ? get_the_title( $next_week['product'] ) : '',
-                isset( $next_week['note'] ) ? $next_week['note'] : ''
-            ) );
+        // Agregar nota informativa
+        $product_name = ACF_Woo_Fasciculos_Utils::get_product_name( $row['product_id'] );
+        $renewal_order->add_order_note( sprintf(
+            /* translators: 1: week number, 2: total weeks, 3: product name, 4: price */
+            __( '📦 Fascículo semana %1$d/%2$d: %3$s — %4$s', 'acf-woo-fasciculos' ),
+            $active + 1,
+            count( $plan ),
+            $product_name,
+            ACF_Woo_Fasciculos_Utils::format_price( $row['price'] )
+        ) );
+    }
+
+    /**
+     * Manejar cambios de estado en pedidos de renovación
+     *
+     * Este método se ejecuta cuando cambia el estado de un pedido.
+     * Si es un pedido de renovación y cambia a 'processing' o 'completed',
+     * avanza el plan de fascículos.
+     *
+     * @param int    $order_id ID del pedido.
+     * @param string $old_status Estado anterior.
+     * @param string $new_status Nuevo estado.
+     * @param WC_Order $order Objeto del pedido.
+     * @return void
+     */
+    public function on_order_status_progresses_renewal( $order_id, $old_status, $new_status, $order ) {
+        // Solo nos interesan cambios a 'processing' o 'completed'
+        if ( ! in_array( $new_status, array( 'processing', 'completed' ), true ) ) {
+            return;
+        }
+
+        // Obtener el pedido si no lo tenemos
+        if ( ! $order instanceof WC_Order ) {
+            $order = wc_get_order( $order_id );
+        }
+
+        // Verificar que tengamos un pedido válido
+        if ( ! $order ) {
+            return;
+        }
+
+        // Verificar si es un pedido de renovación
+        if ( ! ACF_Woo_Fasciculos_Utils::is_renewal_order( $order ) ) {
+            return;
+        }
+
+        // Obtener las suscripciones asociadas
+        $subscriptions = ACF_Woo_Fasciculos_Utils::get_renewal_subscriptions( $order_id );
+        
+        foreach ( $subscriptions as $subscription ) {
+            $this->process_renewal_completion( $subscription, $order_id, $new_status );
+        }
+    }
+
+    /**
+     * Procesar la finalización de una renovación
+     *
+     * @param WC_Subscription $subscription Suscripción.
+     * @param int             $order_id ID del pedido de renovación.
+     * @param string          $new_status Nuevo estado del pedido.
+     * @return void
+     */
+    private function process_renewal_completion( $subscription, $order_id, $new_status ) {
+        // Validar suscripción
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+            return;
+        }
+
+        // Verificar si este pedido ya fue procesado
+        if ( ACF_Woo_Fasciculos_Utils::is_order_processed( $subscription, $order_id ) ) {
+            return;
+        }
+
+        // Obtener el plan de la suscripción
+        $plan = $this->get_subscription_plan( $subscription );
+        if ( empty( $plan ) ) {
+            return;
+        }
+
+        // Obtener el índice actual
+        $current_active = $this->get_active_index( $subscription );
+        
+        // Calcular el siguiente índice
+        $next_index = $current_active + 1;
+        $next_row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $next_index );
+
+        if ( $next_row ) {
+            // Hay siguiente semana, actualizar la suscripción
+            $this->advance_to_next_week( $subscription, $next_index, $next_row, $plan, $order_id, $new_status, $current_active );
         } else {
-            // Última semana - el plan se completará
-            $order->add_order_note( __( '🎉 Plan de fascículos completado tras esta renovación. La suscripción se cancelará.', 'acf-woo-fasciculos' ) );
-
-            // Programar la cancelación de la suscripción
-            $subscription->update_meta_data( '_fasciculo_plan_completed', 'yes' );
-            $subscription->save();
-
-            // Cancelar la suscripción después de un breve retraso para asegurar que el pedido se procese completamente
-            wp_schedule_single_event( time() + 300, 'acf_woo_fasciculos_cancel_subscription', array( $subscription->get_id() ) );
+            // No hay siguiente semana, completar el plan
+            $this->complete_subscription_plan( $subscription, $order_id );
         }
     }
 
     /**
-     * Actualizar el item de la suscripción para la próxima semana
+     * Avanzar a la siguiente semana
      *
      * @param WC_Subscription $subscription Suscripción.
-     * @param array $plan Plan de fascículos.
-     * @param int $next_index Índice de la próxima semana.
+     * @param int             $next_index Índice de la siguiente semana.
+     * @param array           $next_row Datos de la siguiente semana.
+     * @param array           $plan Plan completo.
+     * @param int             $order_id ID del pedido.
+     * @param string          $new_status Nuevo estado del pedido.
+     * @param int             $current_active Índice actual.
      * @return void
      */
-    private function update_subscription_item_for_next_week( $subscription, $plan, $next_index ) {
-        if ( ! isset( $plan[ $next_index ] ) ) {
-            return;
-        }
+    private function advance_to_next_week( $subscription, $next_index, $next_row, $plan, $order_id, $new_status, $current_active ) {
+        // Actualizar el total recurrente de la suscripción
+        $this->update_subscription_recurring_total( $subscription, $next_index, $plan );
 
-        $next_week = $plan[ $next_index ];
-        $items = $subscription->get_items();
+        // Actualizar el índice activo
+        $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $next_index );
 
-        foreach ( $items as $item ) {
-            // Actualizar el producto si es diferente
-            if ( isset( $next_week['product'] ) && $next_week['product'] != $item->get_product_id() ) {
-                $item->set_product_id( $next_week['product'] );
-                $item->set_name( get_the_title( $next_week['product'] ) );
-            }
+        // Agregar nota informativa
+        $this->add_renewal_completion_note( $subscription, $order_id, $new_status, $current_active, $next_index, $plan );
 
-            // Actualizar el precio
-            if ( isset( $next_week['price'] ) ) {
-                $item->set_subtotal( $next_week['price'] );
-                $item->set_total( $next_week['price'] );
-            }
+        // Marcar el pedido como procesado
+        ACF_Woo_Fasciculos_Utils::mark_order_as_processed( $subscription, $order_id );
 
-            // Actualizar la información de la semana
-            $item->update_meta_data( '_fasciculo_active_index', $next_index );
-            $item->update_meta_data( 'Semana actual', sprintf( 'Semana %d de %d', $next_index + 1, count( $plan ) ) );
-
-            if ( isset( $next_week['product'] ) ) {
-                $item->update_meta_data( 'Producto de la semana', get_the_title( $next_week['product'] ) );
-            }
-
-            $item->save();
-            break; // Solo actualizar el primer item
-        }
-
-        // Recalcular totales
-        $subscription->calculate_totals();
+        // Guardar cambios
+        $subscription->save();
     }
 
     /**
-     * Agregar información del plan al panel de administración del pedido
+     * Completar el plan de suscripción
      *
-     * @param WC_Order $order Pedido.
+     * @param WC_Subscription $subscription Suscripción.
+     * @param int             $order_id ID del pedido.
      * @return void
      */
-    public function add_plan_info_to_order_admin( $order ) {
-        if ( ! $order ) {
-            return;
-        }
+    private function complete_subscription_plan( $subscription, $order_id ) {
+        // Agregar nota de finalización
+        $subscription->add_order_note( __( '🎉 Plan de fascículos completado tras esta renovación. La suscripción se cancelará.', 'acf-woo-fasciculos' ) );
 
-        // Buscar información del plan en los items
-        foreach ( $order->get_items() as $item ) {
-            $plan = $item->get_meta( '_fasciculos_plan' );
-            $active_index = $item->get_meta( '_fasciculo_active_index' );
+        // Marcar el pedido como procesado
+        ACF_Woo_Fasciculos_Utils::mark_order_as_processed( $subscription, $order_id );
 
-            if ( ! empty( $plan ) && is_array( $plan ) ) {
-                $current_week = isset( $plan[ $active_index ] ) ? $plan[ $active_index ] : null;
+        // Guardar cambios
+        $subscription->save();
 
-                if ( $current_week ) {
-                    echo '<div class="fasciculos-info" style="margin-top: 10px; padding: 10px; background: #f9f9f9; border-left: 3px solid #2271b1; font-size: 13px;">';
-                    echo '<strong>' . __( 'Plan de Fascículos', 'acf-woo-fasciculos' ) . '</strong><br>';
-                    echo sprintf(
-                        __( 'Semana actual: %1$s de %2$s', 'acf-woo-fasciculos' ),
-                        $active_index + 1,
-                        count( $plan )
-                    ) . '<br>';
-
-                    if ( isset( $current_week['product'] ) && $current_week['product'] ) {
-                        echo '<strong>' . __( 'Producto:', 'acf-woo-fasciculos' ) . '</strong> ' . get_the_title( $current_week['product'] ) . '<br>';
-                    }
-
-                    if ( isset( $current_week['price'] ) && $current_week['price'] ) {
-                        echo '<strong>' . __( 'Precio:', 'acf-woo-fasciculos' ) . '</strong> ' . wc_price( $current_week['price'] ) . '<br>';
-                    }
-
-                    if ( isset( $current_week['note'] ) && $current_week['note'] ) {
-                        echo '<strong>' . __( 'Nota:', 'acf-woo-fasciculos' ) . '</strong> ' . esc_html( $current_week['note'] ) . '<br>';
-                    }
-
-                    echo '</div>';
-                }
-
-                break; // Solo mostrar para el primer item con plan
-            }
-        }
+        // Cancelar la suscripción
+        $subscription->update_status(
+            'cancelled',
+            __( 'Plan completado al confirmar la renovación.', 'acf-woo-fasciculos' )
+        );
     }
 
     /**
-     * Agregar información del plan a los emails
+     * Agregar nota de finalización de renovación
      *
-     * @param WC_Order $order Pedido.
-     * @param bool $sent_to_admin Si se envía al administrador.
-     * @param bool $plain_text Si es texto plano.
-     * @param WC_Email $email Objeto email.
+     * @param WC_Subscription $subscription Suscripción.
+     * @param int             $order_id ID del pedido.
+     * @param string          $new_status Nuevo estado.
+     * @param int             $current_active Índice actual.
+     * @param int             $next_index Índice siguiente.
+     * @param array           $plan Plan de fascículos.
      * @return void
      */
-    public function add_plan_info_to_email( $order, $sent_to_admin, $plain_text, $email ) {
-        if ( ! $order ) {
-            return;
-        }
-
-        // Buscar información del plan en los items
-        foreach ( $order->get_items() as $item ) {
-            $plan = $item->get_meta( '_fasciculos_plan' );
-            $active_index = $item->get_meta( '_fasciculo_active_index' );
-
-            if ( ! empty( $plan ) && is_array( $plan ) ) {
-                $current_week = isset( $plan[ $active_index ] ) ? $plan[ $active_index ] : null;
-
-                if ( $current_week ) {
-                    if ( $plain_text ) {
-                        echo "\n\n" . __( '=== INFORMACIÓN DEL PLAN DE FASCÍCULOS ===', 'acf-woo-fasciculos' ) . "\n\n";
-                        echo sprintf( __( 'Semana actual: %1$s de %2$s', 'acf-woo-fasciculos' ), $active_index + 1, count( $plan ) ) . "\n";
-
-                        if ( isset( $current_week['product'] ) && $current_week['product'] ) {
-                            echo __( 'Producto:', 'acf-woo-fasciculos' ) . ' ' . get_the_title( $current_week['product'] ) . "\n";
-                        }
-
-                        if ( isset( $current_week['price'] ) && $current_week['price'] ) {
-                            echo __( 'Precio:', 'acf-woo-fasciculos' ) . ' ' . wc_price( $current_week['price'] ) . "\n";
-                        }
-
-                        if ( isset( $current_week['note'] ) && $current_week['note'] ) {
-                            echo __( 'Nota:', 'acf-woo-fasciculos' ) . ' ' . $current_week['note'] . "\n";
-                        }
-                    } else {
-                        echo '<div style="margin: 20px 0; padding: 15px; background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 4px;">';
-                        echo '<h3 style="margin: 0 0 10px 0; color: #333; font-size: 16px;">' . __( 'Información del Plan de Fascículos', 'acf-woo-fasciculos' ) . '</h3>';
-                        echo '<p style="margin: 0 0 5px 0;"><strong>' . __( 'Semana actual:', 'acf-woo-fasciculos' ) . '</strong> ' . sprintf( '%1$s de %2$s', $active_index + 1, count( $plan ) ) . '</p>';
-
-                        if ( isset( $current_week['product'] ) && $current_week['product'] ) {
-                            echo '<p style="margin: 0 0 5px 0;"><strong>' . __( 'Producto:', 'acf-woo-fasciculos' ) . '</strong> ' . get_the_title( $current_week['product'] ) . '</p>';
-                        }
-
-                        if ( isset( $current_week['price'] ) && $current_week['price'] ) {
-                            echo '<p style="margin: 0 0 5px 0;"><strong>' . __( 'Precio:', 'acf-woo-fasciculos' ) . '</strong> ' . wc_price( $current_week['price'] ) . '</p>';
-                        }
-
-                        if ( isset( $current_week['note'] ) && $current_week['note'] ) {
-                            echo '<p style="margin: 0;"><strong>' . __( 'Nota:', 'acf-woo-fasciculos' ) . '</strong> ' . esc_html( $current_week['note'] ) . '</p>';
-                        }
-
-                        echo '</div>';
-                    }
-                }
-
-                break; // Solo mostrar para el primer item con plan
-            }
-        }
-    }
-
-    /**
-     * Manejar el guardado de pedidos con HPOS (High-Performance Order Storage)
-     *
-     * @param WC_Order $order Pedido.
-     * @param WC_Data_Store $data_store Almacén de datos.
-     * @return void
-     */
-    public function handle_hpos_order_save( $order, $data_store ) {
-        // Asegurar que los metadatos del plan se guarden correctamente con HPOS
-        if ( $order->meta_exists( '_fasciculos_plan' ) ) {
-            // El plan ya está guardado, no hacer nada
-            return;
-        }
-
-        // Si hay información del plan en los items, copiarla al pedido
-        foreach ( $order->get_items() as $item ) {
-            $plan = $item->get_meta( '_fasciculos_plan' );
-            if ( ! empty( $plan ) ) {
-                $order->add_meta_data( '_fasciculos_plan', $plan );
-                $order->save_meta_data();
-                break;
-            }
-        }
-    }
     private function add_renewal_completion_note( $subscription, $order_id, $new_status, $current_active, $next_index, $plan ) {
         $current_name = ACF_Woo_Fasciculos_Utils::get_product_name( $plan[ $current_active ]['product_id'] );
         $next_name = ACF_Woo_Fasciculos_Utils::get_product_name( $plan[ $next_index ]['product_id'] );

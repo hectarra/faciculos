@@ -12,8 +12,8 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 5.0
  * Requires PHP: 7.2
- * WC requires at least: 3.0
- * WC tested up to: 8.0
+ * WC requires at least: 7.0
+ * WC tested up to: 9.0
  *
  * @package ACF_Woo_Fasciculos
  */
@@ -45,22 +45,6 @@ if ( ! defined( 'ACF_WOO_FASCICULOS_PLUGIN_FILE' ) ) {
 }
 
 /**
- * Declare compatibility with WooCommerce High-Performance Order Storage (HPOS).
- *
- * This tells WooCommerce that the plugin is compatible with custom order tables
- * (HPOS), which prevents the compatibility warning in newer WooCommerce versions.
- */
-add_action(
-	'before_woocommerce_init',
-	function() {
-		// Use a safe class_exists check with the full namespaced class name.
-		if ( class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) && method_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil', 'declare_compatibility' ) ) {
-			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
-		}
-	}
-);
-
-/**
  * Check plugin requirements.
  *
  * @return bool
@@ -81,7 +65,7 @@ function acf_woo_fasciculos_check_requirements() {
 	// WooCommerce.
 	if ( ! class_exists( 'WooCommerce' ) ) {
 		$errors[] = __( 'ACF + Woo Subscriptions Fascículos requiere WooCommerce.', 'acf-woo-fasciculos' );
-	} elseif ( defined( 'WC_VERSION' ) && version_compare( WC_VERSION, '3.0', '<' ) ) {
+	} elseif ( defined( 'WC_VERSION' ) && version_compare( WC_VERSION, '7.0', '<' ) ) {
 		$errors[] = sprintf(
 			/* translators: %s: required WooCommerce version */
 			__( 'ACF + Woo Subscriptions Fascículos requiere WooCommerce versión %s o superior.', 'acf-woo-fasciculos' ),
@@ -223,3 +207,15 @@ function acf_woo_fasciculos_load_textdomain() {
 	);
 }
 add_action( 'init', 'acf_woo_fasciculos_load_textdomain' );
+
+/**
+ * Declarar compatibilidad con HPOS
+ *
+ * @return void
+ */
+function acf_woo_fasciculos_declare_hpos_compatibility() {
+    if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+    }
+}
+add_action( 'before_woocommerce_init', 'acf_woo_fasciculos_declare_hpos_compatibility' );

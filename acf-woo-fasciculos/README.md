@@ -1,9 +1,5 @@
 # ACF + Woo Subscriptions Fascículos
 
-**Versión:** 3.0.0
-**Requiere:** WordPress 5.0+, WooCommerce 8.2+, WooCommerce Subscriptions, Advanced Custom Fields (ACF)
-**Compatible con:** WooCommerce High-Performance Order Storage (HPOS) ✅
-
 Plugin de WordPress que implementa un sistema de suscripción por fascículos para WooCommerce, permitiendo crear planes de entrega semanal con diferentes productos y precios.
 
 ## Características
@@ -14,37 +10,17 @@ Plugin de WordPress que implementa un sistema de suscripción por fascículos pa
 - ✅ **Finalización Automática**: La suscripción se cancela automáticamente al completar el plan
 - 📊 **Panel de Administración**: Visualiza el progreso de cada suscripción en el panel de administración
 - ⚡ **Optimizado**: Sistema de caché para mejorar el rendimiento
-- 🏪 **Compatible con HPOS**: Totalmente compatible con el nuevo sistema de almacenamiento de pedidos de alto rendimiento
-- 🔒 **Moderno y Seguro**: Cumple con los estándares más recientes de WooCommerce
 
 ## Requisitos
 
 - WordPress 5.0 o superior
-- WooCommerce 8.2 o superior (recomendado para HPOS completo)
-- WooCommerce Subscriptions (última versión)
+- WooCommerce 3.0 o superior
+- WooCommerce Subscriptions
 - Advanced Custom Fields (ACF) Pro o gratuito
-- PHP 7.4 o superior (recomendado PHP 8.0+)
-
-## Compatibilidad con HPOS
-
-Este plugin es **totalmente compatible** con WooCommerce High-Performance Order Storage (HPOS):
-
-- ✅ Declaración automática de compatibilidad con `custom_order_tables`
-- ✅ Uso de métodos modernos de WooCommerce para manejo de pedidos
-- ✅ Soporte completo para tablas de pedidos personalizadas
-- ✅ Retrocompatibilidad con el sistema de pedidos tradicional
-- ✅ Optimizado para el rendimiento mejorado de HPOS
-
-**Nota:** Si tu tienda utiliza HPOS, el plugin funcionará automáticamente sin configuración adicional.
+- PHP 7.2 o superior
 
 ## Instalación
 
-### Instalación automática:
-1. Descarga el plugin como archivo ZIP
-2. En WordPress, ve a **Plugins > Añadir nuevo > Subir plugin**
-3. Sube el archivo ZIP y activa el plugin
-
-### Instalación manual:
 1. Descarga el plugin
 2. Sube la carpeta `acf-woo-fasciculos` a `/wp-content/plugins/`
 3. Activa el plugin desde el panel de administración de WordPress
