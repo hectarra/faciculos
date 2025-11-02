@@ -155,13 +155,10 @@ class ACF_Woo_Fasciculos {
         // Hooks de administración
         add_action( 'woocommerce_admin_order_item_values', array( $this->admin_handler, 'show_active_week' ), 10, 3 );
         add_filter( 'woocommerce_hidden_order_itemmeta', array( $this->admin_handler, 'hide_internal_meta' ) );
-        add_action( 'woocommerce_after_order_itemmeta', array( $this->admin_handler, 'display_plan_info' ), 10, 3 );
 
         // Agregar este hook después de los hooks existentes de suscripciones
         add_action( 'woocommerce_order_status_changed', array( $this->subscriptions_handler, 'process_pending_cancellation' ), 15, 1 );
 
-        // Agregar este hook para mostrar el progreso en la página de edición de pedidos
-        add_action( 'woocommerce_admin_order_data_after_order_details', array( $this->admin_handler, 'display_subscription_progress_in_order' ), 20, 1 );
     }
 
     /**

@@ -42,29 +42,45 @@ class ACF_Woo_Fasciculos_Admin {
      * @param int             $item_id ID del item.
      * @return void
      */
-    public function show_active_week( $_product, $item, $item_id ) {
-        // Solo mostrar en el panel de administración
-        if ( ! is_admin() ) {
-            return;
-        }
-
-        // Obtener el índice activo del item
-        $active = $item->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
-        
-        // Si no hay índice activo, no mostrar nada
-        if ( '' === $active || $active === null ) {
-            return;
-        }
-
-        // Mostrar la semana actual
-        echo '<div style="font-size:12px;color:#444;">';
-        printf(
-            /* translators: %d: week number */
-            esc_html__( 'Semana actual fascículos: %d', 'acf-woo-fasciculos' ),
-            intval( $active ) + 1
-        );
-        echo '</div>';
+public function show_active_week( $_product, $item, $item_id ) {
+      // Solo mostrar en el panel de administración
+    if ( ! is_admin() ) {
+        return;
     }
+    
+    // Obtener el índice activo del item
+    $active = $item->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
+    
+    // Si no hay índice activo, no mostrar nada
+    if ( '' === $active || $active === null ) {
+        return;
+    }
+    
+    // Verificar si el item pertenece a una suscripción y obtener el índice actualizado
+    $order_id = $item->get_order_id();
+    if ( $order_id && function_exists( 'wcs_get_subscriptions_for_order' ) ) {
+        $subscriptions = wcs_get_subscriptions_for_order( $order_id, array( 'order_type' => 'any' ) );
+        
+        foreach ( $subscriptions as $subscription ) {
+            if ( ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+                $subscription_active = $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
+                if ( '' !== $subscription_active && $subscription_active !== null ) {
+                    $active = $subscription_active;
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Mostrar la semana actual
+    echo '<div style="font-size:12px;color:#444;">';
+    printf(
+        /* translators: %d: week number */
+        esc_html__( 'Semana actual fascículos: %d', 'acf-woo-fasciculos' ),
+        intval( $active ) + 1
+    );
+    echo '</div>';
+}
 
     /**
      * Ocultar metadatos internos en la interfaz de administración
@@ -81,138 +97,7 @@ class ACF_Woo_Fasciculos_Admin {
         return $hidden_meta;
     }
 
-    /**
-     * Mostrar información limpia del plan en la interfaz de administración
-     *
-     * Este método se ejecuta después de mostrar los metadatos de un item.
-     * Muestra información formateada sobre el plan de fascículos.
-     *
-     * @param int           $item_id ID del item.
-     * @param WC_Order_Item $item Item del pedido.
-     * @param WC_Product    $product Producto.
-     * @return void
-     */
-    public function display_plan_info( $item_id, $item, $product ) {
-        // Solo mostrar en el panel de administración
-        if ( ! is_admin() ) {
-            return;
-        }
-
-        // Obtener el plan del item
-        $plan_json = $item->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
-        
-        if ( ! $plan_json ) {
-            return;
-        }
-
-        // Obtener el índice activo
-        $active_index = $item->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
-        
-        // Decodificar el plan
-        $plan = json_decode( $plan_json, true );
-        if ( empty( $plan ) || ! is_array( $plan ) ) {
-            return;
-        }
-
-        // Calcular la semana actual
-        $current_index = ( '' !== $active_index && $active_index !== null ) ? intval( $active_index ) : 0;
-        $current_row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $current_index );
-
-        // Generar el HTML de la información del plan
-        $this->output_plan_info_html( $current_index, $current_row, $plan );
-    }
-
-/**
- * Mostrar información del progreso de la suscripción en el pedido
- *
- * @param WC_Order $order Pedido.
- * @return void
- */
-public function display_subscription_progress_in_order( $order ) {
-    // Verificar que tengamos el manejador de suscripciones
-    if ( ! $this->subscriptions_handler ) {
-        return;
-    }
     
-    // Solo mostrar en pedidos que contengan suscripciones
-    if ( ! function_exists( 'wcs_order_contains_subscription' ) || ! wcs_order_contains_subscription( $order->get_id() ) ) {
-        return;
-    }
-    
-    // Obtener suscripciones del pedido
-    $subscriptions = wcs_get_subscriptions_for_order( $order->get_id(), array( 'order_type' => 'any' ) );
-    
-    if ( empty( $subscriptions ) ) {
-        return;
-    }
-    
-    echo '<div class="acf-fasciculos-progress" style="margin: 10px 0; padding: 15px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">';
-    echo '<h4 style="margin-top: 0;">' . esc_html__( 'Progreso del Plan de Fascículos', 'acf-woo-fasciculos' ) . '</h4>';
-    
-    foreach ( $subscriptions as $subscription ) {
-        $progress = $this->subscriptions_handler->get_subscription_progress( $subscription );
-        
-        if ( ! empty( $progress ) && $progress['has_plan'] ) {
-            echo '<div style="margin-bottom: 10px;">';
-            echo '<strong>' . esc_html__( 'Suscripción:', 'acf-woo-fasciculos' ) . ' #' . esc_html( $subscription->get_id() ) . '</strong><br>';
-            echo esc_html__( 'Semana actual:', 'acf-woo-fasciculos' ) . ' ' . esc_html( $progress['current_week'] ) . ' / ' . esc_html( $progress['total_weeks'] ) . '<br>';
-            
-            // Barra de progreso
-            $percentage = $progress['progress_percentage'];
-            echo '<div style="background: #e9ecef; height: 20px; border-radius: 10px; overflow: hidden; margin: 5px 0;">';
-            echo '<div style="background: #007cba; height: 100%; width: ' . esc_attr( $percentage ) . '%; transition: width 0.3s ease;"></div>';
-            echo '</div>';
-            
-            echo '<small>' . esc_html( $percentage ) . '% ' . esc_html__( 'completado', 'acf-woo-fasciculos' ) . '</small>';
-            echo '</div>';
-        }
-    }
-    
-    echo '</div>';
-}
-    
-    /**
-     * Generar el HTML de la información del plan
-     *
-     * @param int   $current_index Índice actual.
-     * @param array $current_row Fila actual del plan.
-     * @param array $plan Plan completo.
-     * @return void
-     */
-    private function output_plan_info_html( $current_index, $current_row, $plan ) {
-        // Abrir contenedor
-        echo '<div class="fasciculos-info" style="margin-top:10px; padding:10px; background:#f9f9f9; border-left:3px solid #2271b1;">';
-
-        // Título
-        echo '<strong style="color:#2271b1;">📋 ' . esc_html__( 'Plan de Fascículos', 'acf-woo-fasciculos' ) . '</strong><br>';
-
-        // Información general
-        printf(
-            '<span style="font-size:12px; color:#666;">' . esc_html__( 'Semana actual: %1$s de %2$s', 'acf-woo-fasciculos' ) . '</span><br>',
-            '<strong>' . ( $current_index + 1 ) . '</strong>',
-            '<strong>' . count( $plan ) . '</strong>'
-        );
-
-        // Información específica de la semana actual
-        if ( $current_row ) {
-            $product_name = ACF_Woo_Fasciculos_Utils::get_product_name( $current_row['product_id'] );
-            
-            echo '<span style="font-size:12px; color:#666;">' . esc_html__( 'Producto:', 'acf-woo-fasciculos' ) . ' <strong>' . esc_html( $product_name ) . '</strong></span><br>';
-            
-            printf(
-                '<span style="font-size:12px; color:#666;">' . esc_html__( 'Precio: %s', 'acf-woo-fasciculos' ) . '</span>',
-                '<strong>' . ACF_Woo_Fasciculos_Utils::format_price( $current_row['price'] ) . '</strong>'
-            );
-
-            // Nota si existe
-            if ( ! empty( $current_row['note'] ) ) {
-                echo '<br><span style="font-size:11px; color:#999;">' . esc_html__( 'Nota:', 'acf-woo-fasciculos' ) . ' ' . esc_html( $current_row['note'] ) . '</span>';
-            }
-        }
-
-        // Cerrar contenedor
-        echo '</div>';
-    }
 
     /**
      * Agregar columnas personalizadas a la lista de pedidos

@@ -114,42 +114,80 @@ class ACF_Woo_Fasciculos_Orders {
      * @param WC_Subscription $subscription Suscripción relacionada.
      * @return void
      */
-    public function on_renewal_order_created( $renewal_order, $subscription ) {
-        // Validar pedido y suscripción
-        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $renewal_order ) || ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
-            return;
-        }
-
-        // Obtener el plan de la suscripción
-        $plan = $this->get_subscription_plan( $subscription );
-        if ( empty( $plan ) ) {
-            return;
-        }
-
-        // Obtener el índice activo actual
-        $active = $this->get_active_index( $subscription );
-        
-        // Obtener la información de la semana actual
-        $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $active );
-        if ( ! $row ) {
-            return;
-        }
-
-        // Recalcular totales del pedido
-        $renewal_order->calculate_totals();
-        $renewal_order->save();
-
-        // Agregar nota informativa
-        $product_name = ACF_Woo_Fasciculos_Utils::get_product_name( $row['product_id'] );
-        $renewal_order->add_order_note( sprintf(
-            /* translators: 1: week number, 2: total weeks, 3: product name, 4: price */
-            __( '📦 Fascículo semana %1$d/%2$d: %3$s — %4$s', 'acf-woo-fasciculos' ),
-            $active + 1,
-            count( $plan ),
-            $product_name,
-            ACF_Woo_Fasciculos_Utils::format_price( $row['price'] )
-        ) );
+public function on_renewal_order_created( $renewal_order, $subscription ) {
+    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $renewal_order ) || ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+        return;
     }
+
+    $plan = $this->get_subscription_plan( $subscription );
+    if ( empty( $plan ) ) {
+        return;
+    }
+
+    $active = $this->get_active_index( $subscription );
+    
+    $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $active );
+    if ( ! $row ) {
+        return;
+    }
+
+    foreach ( $renewal_order->get_items() as $item_id => $item ) {
+        if ( ! $item instanceof WC_Order_Item_Product ) {
+            continue;
+        }
+
+        $item->delete_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
+        $item->delete_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+        
+        $item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $active, true );
+        $item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ), true );
+        $item->save();
+    }
+
+    $renewal_order->save();
+
+    $product_name = ACF_Woo_Fasciculos_Utils::get_product_name( $row['product_id'] );
+    $renewal_order->add_order_note( sprintf(
+        __( '📦 Fascículo semana %1$d/%2$d: %3$s — %4$s', 'acf-woo-fasciculos' ),
+        $active + 1,
+        count( $plan ),
+        $product_name,
+        ACF_Woo_Fasciculos_Utils::format_price( $row['price'] )
+    ) );
+}
+
+
+/**
+ * Actualizar metadatos de items en pedido de renovación
+ *
+ * @param WC_Order        $renewal_order Pedido de renovación.
+ * @param WC_Subscription $subscription Suscripción relacionada.
+ * @return void
+ */
+public function update_renewal_order_items_meta( $renewal_order, $subscription ) {
+    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $renewal_order ) || ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+        return;
+    }
+
+    $plan = $this->get_subscription_plan( $subscription );
+    if ( empty( $plan ) ) {
+        return;
+    }
+
+    $active_index = $this->get_active_index( $subscription );
+
+    foreach ( $renewal_order->get_items() as $item_id => $item ) {
+        if ( ! $item instanceof WC_Order_Item_Product ) {
+            continue;
+        }
+
+        $item->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $active_index );
+        $item->update_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
+        $item->save();
+    }
+
+    $renewal_order->save();
+}
 
     /**
      * Manejar cambios de estado en pedidos de renovación

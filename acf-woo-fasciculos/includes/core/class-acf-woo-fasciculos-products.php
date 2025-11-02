@@ -42,9 +42,10 @@ class ACF_Woo_Fasciculos_Products {
         if ( empty( $plan ) ) {
             return;
         }
-
-        // Renderizar la tabla
+        
+        // Renderizar el mensaje con la semana actual
         $this->output_plan_table( $plan );
+    
     }
 
     /**

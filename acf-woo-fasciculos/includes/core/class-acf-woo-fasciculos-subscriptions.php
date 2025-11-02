@@ -98,37 +98,32 @@ class ACF_Woo_Fasciculos_Subscriptions {
      * @param WC_Order        $renewal_order Pedido de renovación.
      * @return array Items modificados.
      */
-    public function modify_renewal_items_before_copy( $items, $subscription, $renewal_order ) {
-        // Validar suscripción
-        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
-            return $items;
-        }
-
-        // Obtener el plan
-        $plan = $this->get_subscription_plan( $subscription );
-        if ( empty( $plan ) ) {
-            return $items;
-        }
-
-        // Obtener el índice activo actual
-        $current_active = $this->get_active_index( $subscription );
-        
-        // Obtener la información de la semana actual
-        $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $current_active );
-        if ( ! $row ) {
-            return $items;
-        }
-
-        // Obtener el producto de la semana actual
-        $new_product = wc_get_product( intval( $row['product_id'] ) );
-        if ( ! $new_product ) {
-            return $items;
-        }
-
-        // Crear nuevos items con el producto actual
-        return $this->create_renewal_items( $items, $new_product, $row, $current_active, $plan );
+public function modify_renewal_items_before_copy( $items, $subscription, $renewal_order ) {
+    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+        return $items;
     }
 
+    $plan = $this->get_subscription_plan( $subscription );
+    if ( empty( $plan ) ) {
+        return $items;
+    }
+
+    $current_active = $this->get_active_index( $subscription );
+    
+    $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $current_active );
+    if ( ! $row ) {
+        return $items;
+    }
+
+    $new_product = wc_get_product( intval( $row['product_id'] ) );
+    if ( ! $new_product ) {
+        return $items;
+    }
+
+    $new_items = $this->create_renewal_items( $items, $new_product, $row, $current_active, $plan );
+    
+    return $new_items;
+}
 
     /**
      * Obtener el plan de fascículos de una suscripción
@@ -255,29 +250,24 @@ public function process_pending_cancellation( $order_id ) {
  * @return void
  */
 private function add_product_to_subscription_order( $subscription, $plan ) {
-    // Obtener datos de la primera semana (índice 0)
     $first_row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, 0 );
     if ( ! $first_row ) {
         return;
     }
 
-    // Obtener el primer producto (Producto inicial)
     $product_product = wc_get_product( intval( $first_row['product_id'] ) );
     if ( ! $product_product ) {
         return;
     }
 
-    // Obtener el pedido padre de la suscripción
     $parent_order = wc_get_order( $subscription->get_parent_id() );
     if ( ! $parent_order ) {
         return;
     }
 
-    // Agregar product al pedido existente
     $qty = 1;
     $product_price = floatval( $first_row['price'] );
 
-    // Crear item para product
     $item = new WC_Order_Item_Product();
     $item->set_product( $product_product );
     $item->set_name( $product_product->get_name() );
@@ -286,24 +276,30 @@ private function add_product_to_subscription_order( $subscription, $plan ) {
     $item->set_total( $product_price * $qty );
     $item->set_tax_class( $product_product->get_tax_class() );
     
-    // Agregar metadatos
     $item->add_meta_data( '_product_item', 'yes' );
     $item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, 0 );
     $item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
     
-    // Guardar item
     $item->save();
     
-    // Agregar al pedido
     $parent_order->add_item( $item );
     
-    // Recalcular totales del pedido
+    // Ajustar el precio de la suscripción a 0€ en el pedido padre
+    foreach ( $parent_order->get_items() as $order_item_id => $order_item ) {
+        if ( $order_item instanceof WC_Order_Item_Product ) {
+            $product = $order_item->get_product();
+            if ( $product && $product->is_type( 'subscription' ) ) {
+                $order_item->set_subtotal( 0 );
+                $order_item->set_total( 0 );
+                $order_item->save();
+            }
+        }
+    }
+    
     $parent_order->calculate_totals();
     $parent_order->save();
 
-    // Agregar nota informativa
     $subscription->add_order_note( sprintf(
-        /* translators: 1: product name, 2: price */
         __( '📦 Producto inicial agregado al pedido: %1$s — %2$s', 'acf-woo-fasciculos' ),
         $product_product->get_name(),
         ACF_Woo_Fasciculos_Utils::format_price( $product_price )
