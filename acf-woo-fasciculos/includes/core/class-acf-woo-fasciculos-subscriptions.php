@@ -129,33 +129,6 @@ class ACF_Woo_Fasciculos_Subscriptions {
         return $this->create_renewal_items( $items, $new_product, $row, $current_active, $plan );
     }
 
-    /**
-     * Verificar si el plan de fascículos está completado
-     *
-     * @param int $subscription_id ID de la suscripción.
-     * @return void
-     */
-    public function check_if_plan_completed( $subscription_id ) {
-        $subscription = wcs_get_subscription( $subscription_id );
-        
-        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
-            return;
-        }
-
-        // Obtener el plan
-        $plan = $this->get_subscription_plan( $subscription );
-        if ( empty( $plan ) ) {
-            return;
-        }
-
-        // Obtener el índice activo
-        $active = $this->get_active_index( $subscription );
-        
-        // Si estamos en la última semana, cancelar la suscripción
-        if ( $active >= ( count( $plan ) - 1 ) ) {
-            $this->prepare_next_week_after_renewal( $subscription, $plan, $active );        
-        }
-    }
 
     /**
      * Obtener el plan de fascículos de una suscripción
@@ -207,6 +180,73 @@ class ACF_Woo_Fasciculos_Subscriptions {
         $subscription->save();
     }
 
+        /**
+ * Verificar si el plan de fascículos está completado
+ *
+ * @param int $subscription_id ID de la suscripción.
+ * @return void
+ */
+public function check_if_plan_completed( $subscription_id ) {
+    $subscription = wcs_get_subscription( $subscription_id );
+    
+    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+        return;
+    }
+
+    // Obtener el plan
+    $plan = $this->get_subscription_plan( $subscription );
+    if ( empty( $plan ) ) {
+        return;
+    }
+
+    // Obtener el índice activo
+    $active = $this->get_active_index( $subscription );
+    
+    // Si estamos en la última semana, marcar para cancelación pendiente
+    if ( $active >= ( count( $plan ) - 1 ) ) {
+        // Marcar que la suscripción está pendiente de cancelación
+        $subscription->update_meta_data( '_fasciculos_pending_cancellation', 'yes' );
+        $subscription->save();
+        
+        // Agregar nota informativa
+        $subscription->add_order_note( __( '⏳ Plan de fascículos completado. La suscripción se cancelará cuando se confirme el pago de esta renovación.', 'acf-woo-fasciculos' ) );
+    }
+}
+
+/**
+ * Procesar la cancelación pendiente cuando se complete el pago
+ *
+ * @param int $order_id ID del pedido.
+ * @return void
+ */
+public function process_pending_cancellation( $order_id ) {
+    $order = wc_get_order( $order_id );
+    
+    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $order ) ) {
+        return;
+    }
+
+    // Obtener suscripciones del pedido
+    $subscriptions = wcs_get_subscriptions_for_order( $order_id, array( 'order_type' => 'any' ) );
+    
+    foreach ( $subscriptions as $subscription ) {
+        // Verificar si hay cancelación pendiente
+        if ( $subscription->get_meta( '_fasciculos_pending_cancellation' ) === 'yes' ) {
+            // Verificar que el pedido esté pagado
+            if ( $order->is_paid() ) {
+                // Cancelar la suscripción
+                $subscription->delete_meta_data( '_fasciculos_pending_cancellation' );
+                $subscription->update_status(
+                    'cancelled',
+                    __( 'Plan de fascículos completado y pago confirmado.', 'acf-woo-fasciculos' )
+                );
+                $subscription->add_order_note( __( '🎉 Suscripción cancelada tras confirmación del pago del último fascículo.', 'acf-woo-fasciculos' ) );
+                $subscription->save();
+            }
+        }
+    }
+}
+
 /**
  * Agregar Producto al pedido de suscripción inicial
  *
@@ -236,7 +276,7 @@ private function add_product_to_subscription_order( $subscription, $plan ) {
     // Agregar product al pedido existente
     $qty = 1;
     $product_price = floatval( $first_row['price'] );
-    
+
     // Crear item para product
     $item = new WC_Order_Item_Product();
     $item->set_product( $product_product );
@@ -480,39 +520,49 @@ private function prepare_next_week_after_renewal( $subscription, $plan, $current
         );
     }
 
-    /**
-     * Obtener el progreso de la suscripción
-     *
-     * @param WC_Subscription $subscription Suscripción.
-     * @return array Progreso de la suscripción.
-     */
-    public function get_subscription_progress( $subscription ) {
-        $info = $this->get_subscription_info( $subscription );
-        
-        if ( empty( $info ) || ! $info['has_plan'] ) {
-            return array(
-                'has_plan' => false,
-                'progress_percentage' => 0,
-                'weeks_completed' => 0,
-                'weeks_remaining' => 0,
-                'is_complete' => false,
-            );
-        }
-
-        $weeks_completed = $info['current_week'];
-        $total_weeks = $info['total_weeks'];
-        $weeks_remaining = max( 0, $total_weeks - $weeks_completed );
-        $progress_percentage = $total_weeks > 0 ? ( $weeks_completed / $total_weeks ) * 100 : 0;
-        $is_complete = $weeks_completed >= $total_weeks;
-
+/**
+ * Obtener el progreso de la suscripción
+ *
+ * @param WC_Subscription $subscription Suscripción.
+ * @return array Progreso de la suscripción.
+ */
+public function get_subscription_progress( $subscription ) {
+    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
         return array(
-            'has_plan' => true,
-            'progress_percentage' => round( $progress_percentage, 2 ),
-            'weeks_completed' => $weeks_completed,
-            'weeks_remaining' => $weeks_remaining,
-            'is_complete' => $is_complete,
-            'total_weeks' => $total_weeks,
-            'current_week' => $info['current_week'],
+            'has_plan' => false,
+            'progress_percentage' => 0,
+            'weeks_completed' => 0,
+            'weeks_remaining' => 0,
+            'is_complete' => false,
         );
     }
+
+    $info = $this->get_subscription_info( $subscription );
+    
+    if ( empty( $info ) || ! $info['has_plan'] ) {
+        return array(
+            'has_plan' => false,
+            'progress_percentage' => 0,
+            'weeks_completed' => 0,
+            'weeks_remaining' => 0,
+            'is_complete' => false,
+        );
+    }
+
+    $weeks_completed = $info['current_week'];
+    $total_weeks = $info['total_weeks'];
+    $weeks_remaining = max( 0, $total_weeks - $weeks_completed );
+    $progress_percentage = $total_weeks > 0 ? ( $weeks_completed / $total_weeks ) * 100 : 0;
+    $is_complete = $weeks_completed >= $total_weeks;
+
+    return array(
+        'has_plan' => true,
+        'progress_percentage' => round( $progress_percentage, 2 ),
+        'weeks_completed' => $weeks_completed,
+        'weeks_remaining' => $weeks_remaining,
+        'is_complete' => $is_complete,
+        'total_weeks' => $total_weeks,
+        'current_week' => $info['current_week'],
+    );
+}
 }

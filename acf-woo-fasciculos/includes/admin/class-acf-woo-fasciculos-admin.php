@@ -16,10 +16,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class ACF_Woo_Fasciculos_Admin {
 
     /**
-     * Constructor
+     * Instancia del manejador de suscripciones
+     *
+     * @var ACF_Woo_Fasciculos_Subscriptions
      */
-    public function __construct() {
-        // Inicializar cualquier configuración necesaria
+    private $subscriptions_handler;
+
+    /**
+     * Constructor
+     * 
+     * @param ACF_Woo_Fasciculos_Subscriptions $subscriptions_handler Manejador de suscripciones.
+     */
+    public function __construct( $subscriptions_handler = null ) {
+        $this->subscriptions_handler = $subscriptions_handler;
     }
 
     /**
@@ -113,6 +122,55 @@ class ACF_Woo_Fasciculos_Admin {
         $this->output_plan_info_html( $current_index, $current_row, $plan );
     }
 
+/**
+ * Mostrar información del progreso de la suscripción en el pedido
+ *
+ * @param WC_Order $order Pedido.
+ * @return void
+ */
+public function display_subscription_progress_in_order( $order ) {
+    // Verificar que tengamos el manejador de suscripciones
+    if ( ! $this->subscriptions_handler ) {
+        return;
+    }
+    
+    // Solo mostrar en pedidos que contengan suscripciones
+    if ( ! function_exists( 'wcs_order_contains_subscription' ) || ! wcs_order_contains_subscription( $order->get_id() ) ) {
+        return;
+    }
+    
+    // Obtener suscripciones del pedido
+    $subscriptions = wcs_get_subscriptions_for_order( $order->get_id(), array( 'order_type' => 'any' ) );
+    
+    if ( empty( $subscriptions ) ) {
+        return;
+    }
+    
+    echo '<div class="acf-fasciculos-progress" style="margin: 10px 0; padding: 15px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">';
+    echo '<h4 style="margin-top: 0;">' . esc_html__( 'Progreso del Plan de Fascículos', 'acf-woo-fasciculos' ) . '</h4>';
+    
+    foreach ( $subscriptions as $subscription ) {
+        $progress = $this->subscriptions_handler->get_subscription_progress( $subscription );
+        
+        if ( ! empty( $progress ) && $progress['has_plan'] ) {
+            echo '<div style="margin-bottom: 10px;">';
+            echo '<strong>' . esc_html__( 'Suscripción:', 'acf-woo-fasciculos' ) . ' #' . esc_html( $subscription->get_id() ) . '</strong><br>';
+            echo esc_html__( 'Semana actual:', 'acf-woo-fasciculos' ) . ' ' . esc_html( $progress['current_week'] ) . ' / ' . esc_html( $progress['total_weeks'] ) . '<br>';
+            
+            // Barra de progreso
+            $percentage = $progress['progress_percentage'];
+            echo '<div style="background: #e9ecef; height: 20px; border-radius: 10px; overflow: hidden; margin: 5px 0;">';
+            echo '<div style="background: #007cba; height: 100%; width: ' . esc_attr( $percentage ) . '%; transition: width 0.3s ease;"></div>';
+            echo '</div>';
+            
+            echo '<small>' . esc_html( $percentage ) . '% ' . esc_html__( 'completado', 'acf-woo-fasciculos' ) . '</small>';
+            echo '</div>';
+        }
+    }
+    
+    echo '</div>';
+}
+    
     /**
      * Generar el HTML de la información del plan
      *

@@ -287,34 +287,49 @@ class ACF_Woo_Fasciculos_Orders {
         );
     }
 
-    /**
-     * Agregar nota de finalización de renovación
-     *
-     * @param WC_Subscription $subscription Suscripción.
-     * @param int             $order_id ID del pedido.
-     * @param string          $new_status Nuevo estado.
-     * @param int             $current_active Índice actual.
-     * @param int             $next_index Índice siguiente.
-     * @param array           $plan Plan de fascículos.
-     * @return void
-     */
-    private function add_renewal_completion_note( $subscription, $order_id, $new_status, $current_active, $next_index, $plan ) {
-        $current_name = ACF_Woo_Fasciculos_Utils::get_product_name( $plan[ $current_active ]['product_id'] );
-        $next_name = ACF_Woo_Fasciculos_Utils::get_product_name( $plan[ $next_index ]['product_id'] );
-
-        $note = ACF_Woo_Fasciculos_Utils::generate_renewal_note(
-            $order_id,
-            $new_status,
-            $current_active,
-            count( $plan ),
-            $current_name,
-            $next_index,
-            $next_name,
-            $plan[ $next_index ]['price']
+/**
+ * Agregar nota de finalización de renovación
+ *
+ * @param WC_Subscription $subscription Suscripción.
+ * @param int             $order_id ID del pedido.
+ * @param string          $new_status Nuevo estado.
+ * @param int             $current_active Índice actual.
+ * @param int             $next_index Índice siguiente.
+ * @param array           $plan Plan de fascículos.
+ * @return void
+ */
+private function add_renewal_completion_note( $subscription, $order_id, $new_status, $current_active, $next_index, $plan ) {
+    $current_week = $current_active + 1;
+    $total_weeks = count( $plan );
+    $next_week = $next_index + 1;
+    
+    if ( $next_index >= $total_weeks ) {
+        // Última semana
+        $message = sprintf(
+            /* translators: 1: current week, 2: total weeks */
+            __( '📦 Última semana completada: %1$d/%2$d. Esperando confirmación de pago para cancelar suscripción.', 'acf-woo-fasciculos' ),
+            $current_week,
+            $total_weeks
         );
-
-        $subscription->add_order_note( $note );
+    } else {
+        // Semana normal
+        $message = sprintf(
+            /* translators: 1: current week, 2: total weeks, 3: next week */
+            __( '📦 Semana %1$d/%2$d completada. Preparando semana %3$d.', 'acf-woo-fasciculos' ),
+            $current_week,
+            $total_weeks,
+            $next_week
+        );
     }
+    
+    $subscription->add_order_note( $message );
+    
+    // Actualizar también el pedido con la información del progreso
+    $order = wc_get_order( $order_id );
+    if ( $order ) {
+        $order->add_order_note( $message );
+    }
+}
 
     /**
      * Actualizar el total recurrente de la suscripción
