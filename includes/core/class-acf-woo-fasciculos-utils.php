@@ -352,4 +352,36 @@ class ACF_Woo_Fasciculos_Utils {
             self::format_price( $next_price )
         );
     }
+
+    /**
+     * Devuelve los productos de un bundle si el producto es un bundle
+     *
+     * @param int $product_id
+     * @return array Array de WC_Product
+     */
+    public static function get_bundle_products_if_bundle($product_id){
+        if (!class_exists('WC_Product_Bundle')) {
+            return array();
+        }
+
+        $product = wc_get_product($product_id);
+
+        if (!$product || $product->get_type() !== 'bundle') {
+            return array();
+        }
+
+        $bundled_items = $product->get_bundled_items();
+        $bundle_products = array();
+
+        if ($bundled_items) {
+            foreach ($bundled_items as $bundled_item) {
+                $bundled_product = $bundled_item->get_product();
+                if ($bundled_product) {
+                    $bundle_products[] = $bundled_product;
+                }
+            }
+        }
+
+        return $bundle_products;
+    }
 }

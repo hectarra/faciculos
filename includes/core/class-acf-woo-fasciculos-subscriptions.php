@@ -448,30 +448,57 @@ private function prepare_next_week_after_renewal( $subscription, $plan, $current
         $new_items = array();
         $new_price = floatval( $row['price'] );
 
-        foreach ( $items as $item_id => $item ) {
-            if ( ! $item instanceof WC_Order_Item_Product ) {
-                // Mantener items que no sean productos sin cambios
-                $new_items[ $item_id ] = $item;
-                continue;
+        $bundle_products = ACF_Woo_Fasciculos_Utils::get_bundle_products_if_bundle($new_product->get_id());
+
+        if (!empty($bundle_products)) {
+            // Es un bundle
+            foreach ($bundle_products as $bundle_product) {
+                $new_item = new WC_Order_Item_Product();
+                $qty = max(1, intval($items[key($items)]->get_quantity()));
+
+                $new_item->set_product($bundle_product);
+                $new_item->set_name($bundle_product->get_name());
+                $new_item->set_quantity($qty);
+                $new_item->set_subtotal(0);
+                $new_item->set_total(0);
+                $new_item->set_tax_class($bundle_product->get_tax_class());
+
+                $new_item->add_meta_data(ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $current_active);
+                $new_item->add_meta_data(ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode($plan));
+
+                $new_items[] = $new_item;
             }
 
-            // Crear nuevo item con el producto de la semana actual
-            $new_item = new WC_Order_Item_Product();
-            $qty = max( 1, intval( $item->get_quantity() ) );
+            // Mantener items que no sean productos sin cambios
+            foreach ( $items as $item_id => $item ) {
+                if ( ! $item instanceof WC_Order_Item_Product ) {
+                    $new_items[ $item_id ] = $item;
+                }
+            }
 
-            // Configurar el nuevo producto
-            $new_item->set_product( $new_product );
-            $new_item->set_name( $new_product->get_name() );
-            $new_item->set_quantity( $qty );
-            $new_item->set_subtotal( $new_price * $qty );
-            $new_item->set_total( $new_price * $qty );
-            $new_item->set_tax_class( $new_product->get_tax_class() );
+        } else {
+            // No es un bundle o está vacío
+            foreach ( $items as $item_id => $item ) {
+                if ( ! $item instanceof WC_Order_Item_Product ) {
+                    $new_items[ $item_id ] = $item;
+                    continue;
+                }
 
-            // Copiar metadatos importantes
-            $new_item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $current_active );
-            $new_item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
+                $new_item = new WC_Order_Item_Product();
+                $qty = max( 1, intval( $item->get_quantity() ) );
 
-            $new_items[ $item_id ] = $new_item;
+                $new_item->set_product( $new_product );
+                $new_item->set_name( $new_product->get_name() );
+                $new_item->set_quantity( $qty );
+                $new_item->set_subtotal( $new_price * $qty );
+                $new_item->set_total( $new_price * $qty );
+                $new_item->set_tax_class( $new_product->get_tax_class() );
+
+                $new_item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $current_active );
+                $new_item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
+
+                $new_items[ $item_id ] = $new_item;
+            }
         }
 
         return $new_items;
