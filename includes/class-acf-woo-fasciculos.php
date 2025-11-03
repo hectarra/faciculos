@@ -147,7 +147,6 @@ class ACF_Woo_Fasciculos {
         add_action( 'woocommerce_subscription_status_active', array( $this->subscriptions_handler, 'on_subscription_activated' ), 10, 1 );
         add_action( 'woocommerce_payment_complete', array( $this->subscriptions_handler, 'on_payment_complete_check_subscription' ), 10, 1 );
         add_action( 'woocommerce_scheduled_subscription_payment', array( $this->subscriptions_handler, 'check_if_plan_completed' ), 5, 1 );
-        add_filter( 'wcs_renewal_order_items', array( $this->subscriptions_handler, 'modify_renewal_items_before_copy' ), 10, 3 );
 
         // Hooks de ACF
         add_action( 'acf/init', array( $this->acf_handler, 'register_fields' ) );

@@ -91,41 +91,6 @@ class ACF_Woo_Fasciculos_Subscriptions {
     }
 
     /**
-     * Modificar items antes de copiar a pedido de renovación
-     *
-     * @param array           $items Items del pedido.
-     * @param WC_Subscription $subscription Suscripción.
-     * @param WC_Order        $renewal_order Pedido de renovación.
-     * @return array Items modificados.
-     */
-public function modify_renewal_items_before_copy( $items, $subscription, $renewal_order ) {
-    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
-        return $items;
-    }
-
-    $plan = $this->get_subscription_plan( $subscription );
-    if ( empty( $plan ) ) {
-        return $items;
-    }
-
-    $current_active = $this->get_active_index( $subscription );
-    
-    $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $current_active );
-    if ( ! $row ) {
-        return $items;
-    }
-
-    $new_product = wc_get_product( intval( $row['product_id'] ) );
-    if ( ! $new_product ) {
-        return $items;
-    }
-
-    $new_items = $this->create_renewal_items( $items, $new_product, $row, $current_active, $plan );
-    
-    return $new_items;
-}
-
-    /**
      * Obtener el plan de fascículos de una suscripción
      *
      * @param WC_Subscription $subscription Suscripción.
@@ -399,113 +364,56 @@ private function prepare_next_week_after_renewal( $subscription, $plan, $current
      */
     private function update_subscription_recurring_total( $subscription, $week_index, $plan ) {
         $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $week_index );
-        
+
         if ( ! $row ) {
             return;
         }
 
-        $new_product = wc_get_product( intval( $row['product_id'] ) );
+        $new_product_id = intval( $row['product_id'] );
+        $new_product = wc_get_product( $new_product_id );
+
         if ( ! $new_product ) {
             return;
         }
 
-        $new_price = floatval( $row['price'] );
-
-        // Actualizar cada item de la suscripción
+        // Remove old items from the subscription
         foreach ( $subscription->get_items() as $item_id => $item ) {
-            if ( ! $item instanceof WC_Order_Item_Product ) {
-                continue;
+            if ( $item instanceof WC_Order_Item_Product ) {
+                $subscription->remove_item( $item_id );
             }
-
-            $qty = max( 1, intval( $item->get_quantity() ) );
-
-            // Actualizar producto y precio
-            $item->set_product( $new_product );
-            $item->set_name( $new_product->get_name() );
-            $item->set_product_id( $new_product->get_id() );
-            $item->set_subtotal( $new_price * $qty );
-            $item->set_total( $new_price * $qty );
-            $item->save();
         }
 
-        // Recalcular totales
+        $bundle_products = ACF_Woo_Fasciculos_Utils::get_bundle_products_if_bundle( $new_product_id );
+        $new_price = floatval( $row['price'] );
+
+        if ( ! empty( $bundle_products ) ) {
+            // It's a bundle, add each child product
+            $item_price = $new_price / count( $bundle_products );
+
+            foreach ( $bundle_products as $bundle_product ) {
+                $item = new WC_Order_Item_Product();
+                $item->set_product( $bundle_product );
+                $item->set_name( $bundle_product->get_name() );
+                $item->set_quantity( 1 );
+                $item->set_subtotal( $item_price );
+                $item->set_total( $item_price );
+                $subscription->add_item( $item );
+            }
+        } else {
+            // It's a simple product, add it
+            $item = new WC_Order_Item_Product();
+            $item->set_product( $new_product );
+            $item->set_name( $new_product->get_name() );
+            $item->set_quantity( 1 );
+            $item->set_subtotal( $new_price );
+            $item->set_total( $new_price );
+            $subscription->add_item( $item );
+        }
+
+        // Recalculate totals and save
         $subscription->calculate_totals();
         $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $week_index );
         $subscription->save();
-    }
-
-    /**
-     * Crear items de renovación con el producto correcto
-     *
-     * @param array      $items Items originales.
-     * @param WC_Product $new_product Nuevo producto.
-     * @param array      $row Datos de la semana.
-     * @param int        $current_active Índice actual.
-     * @param array      $plan Plan completo.
-     * @return array Items modificados.
-     */
-    private function create_renewal_items( $items, $new_product, $row, $current_active, $plan ) {
-        $new_items = array();
-        $new_price = floatval( $row['price'] );
-        $original_product_item = null;
-
-        // 1. Separate product items from other items (shipping, fees, etc.)
-        foreach ( $items as $item_id => $item ) {
-            if ( $item instanceof WC_Order_Item_Product ) {
-                $original_product_item = $item;
-            } else {
-                $new_items[ $item_id ] = $item;
-            }
-        }
-
-        // If for some reason there's no product in the original items, abort.
-        if ( ! $original_product_item ) {
-            return $items; // Return original items to be safe
-        }
-
-        $bundle_products = ACF_Woo_Fasciculos_Utils::get_bundle_products_if_bundle( $new_product->get_id() );
-
-        if ( ! empty( $bundle_products ) ) {
-            // 2. It's a bundle. Add each child product.
-            $qty = max( 1, intval( $original_product_item->get_quantity() ) );
-
-            foreach ( $bundle_products as $bundle_product ) {
-                $new_item = new WC_Order_Item_Product();
-                $new_item->set_product( $bundle_product );
-                $new_item->set_name( $bundle_product->get_name() );
-                $new_item->set_quantity( $qty );
-                // Price is handled by the subscription total, set to 0 to avoid double charging
-                $new_item->set_subtotal( 0 );
-                $new_item->set_total( 0 );
-                $new_item->set_tax_class( $bundle_product->get_tax_class() );
-
-                // Copy metadata
-                $new_item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $current_active );
-                $new_item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
-
-                $new_items[] = $new_item; // Use [] to add to the array without a specific key
-            }
-
-        } else {
-            // 3. It's not a bundle. Use the existing logic.
-            $qty = max( 1, intval( $original_product_item->get_quantity() ) );
-            $new_item = new WC_Order_Item_Product();
-
-            $new_item->set_product( $new_product );
-            $new_item->set_name( $new_product->get_name() );
-            $new_item->set_quantity( $qty );
-            $new_item->set_subtotal( $new_price * $qty );
-            $new_item->set_total( $new_price * $qty );
-            $new_item->set_tax_class( $new_product->get_tax_class() );
-
-            // Copy metadata
-            $new_item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $current_active );
-            $new_item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
-
-            $new_items[] = $new_item;
-        }
-
-        return $new_items;
     }
 
     /**
