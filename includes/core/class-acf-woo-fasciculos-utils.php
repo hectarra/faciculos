@@ -370,14 +370,22 @@ class ACF_Woo_Fasciculos_Utils {
             return array();
         }
 
+        // Un producto "ensamblado" es un bundle que no se envía por separado
+        if ($product->is_shipped_individually()) {
+            return array();
+        }
+
         $bundled_items = $product->get_bundled_items();
         $bundle_products = array();
 
         if ($bundled_items) {
             foreach ($bundled_items as $bundled_item) {
-                $bundled_product = $bundled_item->get_product();
-                if ($bundled_product) {
-                    $bundle_products[] = $bundled_product;
+                // Adicionalmente, nos aseguramos que cada item del bundle no sea de envío individual
+                if (!$bundled_item->is_shipped_individually()) {
+                    $bundled_product = $bundled_item->get_product();
+                    if ($bundled_product) {
+                        $bundle_products[] = $bundled_product;
+                    }
                 }
             }
         }
