@@ -376,11 +376,17 @@ private function prepare_next_week_after_renewal( $subscription, $plan, $current
             return;
         }
 
-        // Remove old items from the subscription
+        // First, collect the IDs of all product items to remove.
+        $items_to_remove = [];
         foreach ( $subscription->get_items() as $item_id => $item ) {
             if ( $item instanceof WC_Order_Item_Product ) {
-                $subscription->remove_item( $item_id );
+                $items_to_remove[] = $item_id;
             }
+        }
+
+        // Now, remove the items in a separate loop.
+        foreach ( $items_to_remove as $item_id ) {
+            $subscription->remove_item( $item_id );
         }
 
         $bundle_products = ACF_Woo_Fasciculos_Utils::get_bundle_products_if_bundle( $new_product_id );

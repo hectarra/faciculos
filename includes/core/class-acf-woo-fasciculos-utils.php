@@ -375,12 +375,9 @@ class ACF_Woo_Fasciculos_Utils {
 
         if ($bundled_items) {
             foreach ($bundled_items as $bundled_item) {
-                // Adicionalmente, nos aseguramos que cada item del bundle no sea de envío individual
-                if (!$bundled_item->is_shipped_individually()) {
-                    $bundled_product = $bundled_item->get_product();
-                    if ($bundled_product) {
-                        $bundle_products[] = $bundled_product;
-                    }
+                $bundled_product = $bundled_item->get_product();
+                if ($bundled_product) {
+                    $bundle_products[] = $bundled_product;
                 }
             }
         }
