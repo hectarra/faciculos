@@ -362,7 +362,7 @@ private function prepare_next_week_after_renewal( $subscription, $plan, $current
      * @param array           $plan Plan de fascículos.
      * @return void
      */
-    private function update_subscription_recurring_total( $subscription, $week_index, $plan ) {
+    public function update_subscription_recurring_total( $subscription, $week_index, $plan ) {
         $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $week_index );
 
         if ( ! $row ) {
