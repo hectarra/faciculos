@@ -447,58 +447,62 @@ private function prepare_next_week_after_renewal( $subscription, $plan, $current
     private function create_renewal_items( $items, $new_product, $row, $current_active, $plan ) {
         $new_items = array();
         $new_price = floatval( $row['price'] );
+        $original_product_item = null;
 
-        $bundle_products = ACF_Woo_Fasciculos_Utils::get_bundle_products_if_bundle($new_product->get_id());
-
-        if (!empty($bundle_products)) {
-            // Es un bundle
-            foreach ($bundle_products as $bundle_product) {
-                $new_item = new WC_Order_Item_Product();
-                $qty = max(1, intval($items[key($items)]->get_quantity()));
-
-                $new_item->set_product($bundle_product);
-                $new_item->set_name($bundle_product->get_name());
-                $new_item->set_quantity($qty);
-                $new_item->set_subtotal(0);
-                $new_item->set_total(0);
-                $new_item->set_tax_class($bundle_product->get_tax_class());
-
-                $new_item->add_meta_data(ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $current_active);
-                $new_item->add_meta_data(ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode($plan));
-
-                $new_items[] = $new_item;
+        // 1. Separate product items from other items (shipping, fees, etc.)
+        foreach ( $items as $item_id => $item ) {
+            if ( $item instanceof WC_Order_Item_Product ) {
+                $original_product_item = $item;
+            } else {
+                $new_items[ $item_id ] = $item;
             }
+        }
 
-            // Mantener items que no sean productos sin cambios
-            foreach ( $items as $item_id => $item ) {
-                if ( ! $item instanceof WC_Order_Item_Product ) {
-                    $new_items[ $item_id ] = $item;
-                }
-            }
+        // If for some reason there's no product in the original items, abort.
+        if ( ! $original_product_item ) {
+            return $items; // Return original items to be safe
+        }
 
-        } else {
-            // No es un bundle o está vacío
-            foreach ( $items as $item_id => $item ) {
-                if ( ! $item instanceof WC_Order_Item_Product ) {
-                    $new_items[ $item_id ] = $item;
-                    continue;
-                }
+        $bundle_products = ACF_Woo_Fasciculos_Utils::get_bundle_products_if_bundle( $new_product->get_id() );
 
+        if ( ! empty( $bundle_products ) ) {
+            // 2. It's a bundle. Add each child product.
+            $qty = max( 1, intval( $original_product_item->get_quantity() ) );
+
+            foreach ( $bundle_products as $bundle_product ) {
                 $new_item = new WC_Order_Item_Product();
-                $qty = max( 1, intval( $item->get_quantity() ) );
-
-                $new_item->set_product( $new_product );
-                $new_item->set_name( $new_product->get_name() );
+                $new_item->set_product( $bundle_product );
+                $new_item->set_name( $bundle_product->get_name() );
                 $new_item->set_quantity( $qty );
-                $new_item->set_subtotal( $new_price * $qty );
-                $new_item->set_total( $new_price * $qty );
-                $new_item->set_tax_class( $new_product->get_tax_class() );
+                // Price is handled by the subscription total, set to 0 to avoid double charging
+                $new_item->set_subtotal( 0 );
+                $new_item->set_total( 0 );
+                $new_item->set_tax_class( $bundle_product->get_tax_class() );
 
+                // Copy metadata
                 $new_item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $current_active );
                 $new_item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
 
-                $new_items[ $item_id ] = $new_item;
+                $new_items[] = $new_item; // Use [] to add to the array without a specific key
             }
+
+        } else {
+            // 3. It's not a bundle. Use the existing logic.
+            $qty = max( 1, intval( $original_product_item->get_quantity() ) );
+            $new_item = new WC_Order_Item_Product();
+
+            $new_item->set_product( $new_product );
+            $new_item->set_name( $new_product->get_name() );
+            $new_item->set_quantity( $qty );
+            $new_item->set_subtotal( $new_price * $qty );
+            $new_item->set_total( $new_price * $qty );
+            $new_item->set_tax_class( $new_product->get_tax_class() );
+
+            // Copy metadata
+            $new_item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $current_active );
+            $new_item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
+
+            $new_items[] = $new_item;
         }
 
         return $new_items;
