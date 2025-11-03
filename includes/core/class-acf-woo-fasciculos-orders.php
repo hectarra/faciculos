@@ -285,8 +285,11 @@ public function update_renewal_order_items_meta( $renewal_order, $subscription )
      * @return void
      */
     private function advance_to_next_week( $subscription, $next_index, $next_row, $plan, $order_id, $new_status, $current_active ) {
+        // Get the subscriptions handler to call the correct function
+        $subscriptions_handler = ACF_Woo_Fasciculos::get_instance()->get_subscriptions_handler();
+
         // Actualizar el total recurrente de la suscripción
-        $this->update_subscription_recurring_total( $subscription, $next_index, $plan );
+        $subscriptions_handler->update_subscription_recurring_total( $subscription, $next_index, $plan );
 
         // Actualizar el índice activo
         $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $next_index );
@@ -368,50 +371,6 @@ private function add_renewal_completion_note( $subscription, $order_id, $new_sta
         $order->add_order_note( $message );
     }
 }
-
-    /**
-     * Actualizar el total recurrente de la suscripción
-     *
-     * @param WC_Subscription $subscription Suscripción.
-     * @param int             $week_index Índice de la semana.
-     * @param array           $plan Plan de fascículos.
-     * @return void
-     */
-    private function update_subscription_recurring_total( $subscription, $week_index, $plan ) {
-        $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $week_index );
-        
-        if ( ! $row ) {
-            return;
-        }
-
-        $new_product = wc_get_product( intval( $row['product_id'] ) );
-        if ( ! $new_product ) {
-            return;
-        }
-
-        $new_price = floatval( $row['price'] );
-
-        // Actualizar cada item de la suscripción
-        foreach ( $subscription->get_items() as $item_id => $item ) {
-            if ( ! $item instanceof WC_Order_Item_Product ) {
-                continue;
-            }
-
-            $qty = max( 1, intval( $item->get_quantity() ) );
-
-            // Actualizar producto y precio
-            $item->set_product( $new_product );
-            $item->set_name( $new_product->get_name() );
-            $item->set_product_id( $new_product->get_id() );
-            $item->set_subtotal( $new_price * $qty );
-            $item->set_total( $new_price * $qty );
-            $item->save();
-        }
-
-        // Recalcular totales
-        $subscription->calculate_totals();
-        $subscription->save();
-    }
 
     /**
      * Obtener el plan de fascículos de una suscripción
