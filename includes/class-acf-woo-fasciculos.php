@@ -169,6 +169,16 @@ class ACF_Woo_Fasciculos {
         // Agregar este hook después de los hooks existentes de suscripciones
         add_action( 'woocommerce_order_status_changed', array( $this->subscriptions_handler, 'process_pending_cancellation' ), 15, 1 );
 
+        // Deshabilitar renovación y reactivación desde el área de usuario para suscripciones de fascículos
+        // Usamos prioridad alta (999) para asegurar que nuestros filtros se ejecuten después de otros plugins
+        add_filter( 'wcs_view_subscription_actions', array( $this->subscriptions_handler, 'disable_user_renewal_reactivate_actions' ), 999, 2 );
+        add_filter( 'wcs_can_user_reactivate_subscription', array( $this->subscriptions_handler, 'disable_user_reactivation' ), 999, 2 );
+        add_filter( 'wcs_can_user_resubscribe_to_subscription', array( $this->subscriptions_handler, 'disable_user_reactivation' ), 999, 2 );
+        
+        // Filtros para bloquear renovación anticipada (multiple hooks para diferentes versiones de WCS)
+        add_filter( 'wcs_can_user_renew_early_subscription', array( $this->subscriptions_handler, 'disable_early_renewal' ), 999, 2 );
+        add_filter( 'wcs_subscription_can_be_renewed_early', array( $this->subscriptions_handler, 'disable_early_renewal' ), 999, 2 );
+
     }
 
     /**

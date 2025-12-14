@@ -673,4 +673,117 @@ public function get_subscription_progress( $subscription ) {
     );
 }
 
+/**
+ * Deshabilitar acciones de renovación y reactivación en el área de usuario
+ *
+ * Filtra las acciones disponibles para el cliente en la vista de suscripción,
+ * eliminando las opciones de "renovar", "resuscribir" y "reactivar" para suscripciones
+ * que tienen un plan de fascículos.
+ *
+ * @param array           $actions Acciones disponibles.
+ * @param WC_Subscription $subscription Suscripción.
+ * @return array Acciones filtradas.
+ */
+public function disable_user_renewal_reactivate_actions( $actions, $subscription ) {
+    // Verificar si la suscripción tiene un plan de fascículos
+    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+        return $actions;
+    }
+
+    $plan_cache = $subscription->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+    
+    // Si la suscripción no tiene plan de fascículos, no modificar acciones
+    if ( empty( $plan_cache ) ) {
+        return $actions;
+    }
+
+    // Lista de acciones específicas a eliminar
+    $actions_to_remove = array(
+        'resubscribe',              // Botón "Resuscribirse" para suscripciones canceladas/expiradas
+        'renew',                    // Botón "Renovar" para renovación manual
+        'subscription_renewal_early', // Botón "Renovar anticipadamente"
+        'reactivate',               // Botón "Reactivar" para suscripciones en espera
+    );
+
+    foreach ( $actions_to_remove as $action_key ) {
+        if ( isset( $actions[ $action_key ] ) ) {
+            unset( $actions[ $action_key ] );
+        }
+    }
+
+    // Además, eliminar cualquier acción que contenga "renew" en su clave
+    // Esto captura variantes que puedan existir en diferentes versiones de WCS
+    foreach ( array_keys( $actions ) as $action_key ) {
+        if ( strpos( $action_key, 'renew' ) !== false ) {
+            unset( $actions[ $action_key ] );
+        }
+    }
+
+    return $actions;
+}
+
+/**
+ * Deshabilitar el permiso de reactivación y resuscripción de suscripciones
+ *
+ * Este filtro previene que el usuario pueda reactivar o resuscribirse a una suscripción
+ * con plan de fascículos, incluso si intenta acceder directamente a la URL.
+ *
+ * @param bool            $can_perform Si el usuario puede realizar la acción.
+ * @param WC_Subscription $subscription Suscripción.
+ * @return bool False si la suscripción tiene plan de fascículos.
+ */
+public function disable_user_reactivation( $can_perform, $subscription ) {
+    if ( ! $can_perform ) {
+        return false;
+    }
+
+    if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+        return $can_perform;
+    }
+
+    $plan_cache = $subscription->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+    
+    // Si la suscripción tiene plan de fascículos, no permitir reactivación ni resuscripción
+    if ( ! empty( $plan_cache ) ) {
+        return false;
+    }
+
+    return $can_perform;
+}
+
+/**
+ * Deshabilitar la renovación anticipada de suscripciones
+ *
+ * El filtro wcs_subscription_can_be_renewed_early puede pasar los parámetros
+ * en diferente orden dependiendo de la versión de WooCommerce Subscriptions.
+ *
+ * @param bool            $can_renew_early Si el usuario puede renovar anticipadamente.
+ * @param WC_Subscription $subscription Suscripción.
+ * @return bool False si la suscripción tiene plan de fascículos.
+ */
+public function disable_early_renewal( $can_renew_early, $subscription = null ) {
+    // Si el primer parámetro es una suscripción (algunas versiones de WCS)
+    if ( is_a( $can_renew_early, 'WC_Subscription' ) ) {
+        $subscription = $can_renew_early;
+        $can_renew_early = true;
+    }
+
+    if ( ! $can_renew_early ) {
+        return false;
+    }
+
+    if ( ! $subscription || ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+        return $can_renew_early;
+    }
+
+    $plan_cache = $subscription->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+    
+    // Si la suscripción tiene plan de fascículos, no permitir renovación anticipada
+    if ( ! empty( $plan_cache ) ) {
+        return false;
+    }
+
+    return $can_renew_early;
+}
+
 }

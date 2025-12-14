@@ -25,6 +25,17 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 - `allow_payment_method_change_on_hold()` - Habilita cambio de método de pago para suscripciones on-hold
 - `add_change_payment_action_on_hold()` - Agrega el botón de acción en la página de suscripción
 - `retry_payment_after_method_change()` - Procesa automáticamente el pago pendiente
+- `disable_user_renewal_reactivate_actions()` - Elimina botones de renovar, reactivar y resuscribir del área de usuario
+- `disable_user_reactivation()` - Bloquea reactivación/resuscripción de suscripciones de fascículos
+- `disable_early_renewal()` - Bloquea renovación anticipada (botón "Renovar ahora")
+
+### Restricciones de usuario
+- **Bloqueo de acciones del cliente** para suscripciones de fascículos:
+  - ❌ Renovar ahora (early renewal)
+  - ❌ Renovar manualmente
+  - ❌ Reactivar suscripción
+  - ❌ Resuscribirse
+- Múltiples filtros de WCS con prioridad 999 para asegurar ejecución
 
 ---
 
