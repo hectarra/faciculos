@@ -71,6 +71,7 @@ class ACF_Woo_Fasciculos {
     const META_ACTIVE_INDEX = '_fasciculo_active_index';
     const META_PLAN_CACHE = '_fasciculos_plan_cache';
     const META_FIRST_UPDATE = '_fasciculo_first_update_done';
+    const META_RENEWAL_DAYS = '_fasciculo_custom_renewal_days';
 
     /**
      * Obtener la única instancia del plugin
@@ -143,6 +144,7 @@ class ACF_Woo_Fasciculos {
         // Hooks de pedidos
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this->orders_handler, 'save_plan_to_order_item' ), 10, 4 );
         add_action( 'woocommerce_checkout_subscription_created', array( $this->orders_handler, 'copy_plan_to_subscription' ), 10, 4 );
+        add_action( 'woocommerce_checkout_subscription_created', array( $this->orders_handler, 'apply_custom_renewal_days' ), 15, 3 );
         add_filter( 'wcs_renewal_order_created', array( $this->orders_handler, 'on_renewal_order_created' ), 10, 2 );
         add_action( 'woocommerce_order_status_changed', array( $this->orders_handler, 'on_order_status_progresses_renewal' ), 10, 4 );
 

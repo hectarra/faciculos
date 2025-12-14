@@ -149,6 +149,27 @@ class ACF_Woo_Fasciculos_ACF {
                         ),
                     ),
                 ),
+                array(
+                    'key' => 'field_fasciculo_renewal_days',
+                    'label' => __( 'Días entre renovaciones', 'acf-woo-fasciculos' ),
+                    'name' => 'fasciculo_renewal_days',
+                    'type' => 'number',
+                    'instructions' => __( 'Número de días entre cada renovación. Si se deja vacío, se usará el período configurado en el producto de suscripción. Ejemplos: 7 = semanal, 14 = quincenal, 30 = mensual.', 'acf-woo-fasciculos' ),
+                    'required' => 0,
+                    'conditional_logic' => 0,
+                    'wrapper' => array(
+                        'width' => '',
+                        'class' => '',
+                        'id' => '',
+                    ),
+                    'default_value' => '',
+                    'placeholder' => __( 'Ej: 7, 14, 30...', 'acf-woo-fasciculos' ),
+                    'prepend' => '',
+                    'append' => __( 'días', 'acf-woo-fasciculos' ),
+                    'min' => 1,
+                    'max' => 365,
+                    'step' => 1,
+                ),
             ),
             'location' => array(
                 array(

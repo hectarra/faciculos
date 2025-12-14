@@ -108,6 +108,72 @@ class ACF_Woo_Fasciculos_Orders {
     }
 
     /**
+     * Aplicar período de renovación personalizado en días
+     *
+     * Este método se ejecuta cuando se crea una suscripción.
+     * Si el producto tiene configurado un número personalizado de días entre renovaciones,
+     * modifica el período de facturación de la suscripción.
+     *
+     * @param WC_Subscription $subscription Suscripción creada.
+     * @param WC_Order        $order Pedido padre.
+     * @param WC_Cart         $recurring_cart Carrito recurrente.
+     * @return void
+     */
+    public function apply_custom_renewal_days( $subscription, $order, $recurring_cart ) {
+        // Validar suscripción
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+            return;
+        }
+
+        // Buscar producto con plan de fascículos en la suscripción
+        foreach ( $subscription->get_items() as $item ) {
+            if ( ! $item instanceof WC_Order_Item_Product ) {
+                continue;
+            }
+
+            $product_id = $item->get_product_id();
+            
+            // Verificar si tiene plan de fascículos
+            $plan = ACF_Woo_Fasciculos_Utils::get_plan_for_product( $product_id );
+            if ( empty( $plan ) ) {
+                continue;
+            }
+            
+            // Obtener días personalizados desde ACF
+            $custom_days = get_field( 'fasciculo_renewal_days', $product_id );
+            
+            if ( $custom_days && intval( $custom_days ) > 0 ) {
+                $days = intval( $custom_days );
+                
+                // Guardar en meta de la suscripción
+                $subscription->update_meta_data( ACF_Woo_Fasciculos::META_RENEWAL_DAYS, $days );
+                
+                // Aplicar período en días
+                $subscription->set_billing_period( 'day' );
+                $subscription->set_billing_interval( $days );
+                
+                // Recalcular próxima fecha de pago basada en el nuevo período
+                $start_date = $subscription->get_date( 'start' );
+                if ( $start_date ) {
+                    $next_payment = gmdate( 'Y-m-d H:i:s', strtotime( $start_date . ' + ' . $days . ' days' ) );
+                    $subscription->update_dates( array( 'next_payment' => $next_payment ) );
+                }
+                
+                $subscription->save();
+                
+                // Agregar nota informativa
+                $subscription->add_order_note( sprintf(
+                    /* translators: %d: number of days */
+                    __( '📅 Período de renovación personalizado aplicado: cada %d días', 'acf-woo-fasciculos' ),
+                    $days
+                ) );
+                
+                break; // Solo procesar el primer producto con plan
+            }
+        }
+    }
+
+    /**
      * Manejar la creación de un pedido de renovación (filtro wcs_renewal_order_created)
      *
      * @param WC_Order        $renewal_order Pedido de renovación.

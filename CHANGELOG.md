@@ -5,6 +5,22 @@ Todos los cambios notables en este plugin serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 
+## [3.3.0]
+
+### Añadido
+- **Días personalizados de renovación**
+  - Nuevo campo ACF "Días entre renovaciones" en productos de suscripción
+  - Permite configurar un número exacto de días entre cada renovación (ej: 7, 14, 30, etc.)
+  - Si se deja vacío, se usa el período configurado en el producto de WooCommerce Subscriptions
+  - Rango permitido: 1 a 365 días
+  
+### Funciones nuevas
+- `apply_custom_renewal_days()` - Aplica el período de renovación personalizado al crear la suscripción
+- Nueva constante `META_RENEWAL_DAYS` para almacenar los días personalizados en la suscripción
+- Nota informativa automática cuando se aplica período personalizado: "📅 Período de renovación personalizado aplicado: cada X días"
+
+---
+
 ## [3.2.0]
 
 ### Corregido
