@@ -86,13 +86,16 @@ class ACF_Woo_Fasciculos_Cart {
             return $item_data;
         }
 
-        // Obtener el nombre del producto
-        $product_name = ACF_Woo_Fasciculos_Utils::get_product_name( $row['product_id'] );
+        // Obtener los nombres de los productos
+        $product_names = '';
+        if ( isset( $row['product_ids'] ) && is_array( $row['product_ids'] ) ) {
+            $product_names = ACF_Woo_Fasciculos_Utils::get_product_names( $row['product_ids'] );
+        }
 
         // Agregar la información al item
         $item_data[] = array(
             'name'  => __( 'Fascículo (semana actual)', 'acf-woo-fasciculos' ),
-            'value' => sprintf( '%s — %s', $product_name, ACF_Woo_Fasciculos_Utils::format_price( $row['price'] ) ),
+            'value' => sprintf( '%s — %s', $product_names, ACF_Woo_Fasciculos_Utils::format_price( $row['price'] ) ),
         );
 
         return $item_data;
@@ -206,19 +209,19 @@ class ACF_Woo_Fasciculos_Cart {
     }
 
     /**
-     * Obtener el nombre del producto actual del fascículo
+     * Obtener los nombres de los productos actuales del fascículo
      *
      * @param array $cart_item Item del carrito.
-     * @return string Nombre del producto o string vacío.
+     * @return string Nombres de los productos o string vacío.
      */
-    public function get_current_fasciculo_product_name( $cart_item ) {
+    public function get_current_fasciculo_product_names( $cart_item ) {
         $fasciculo_info = $this->get_current_fasciculo_info( $cart_item );
         
-        if ( ! $fasciculo_info || ! isset( $fasciculo_info['product_id'] ) ) {
+        if ( ! $fasciculo_info || ! isset( $fasciculo_info['product_ids'] ) ) {
             return '';
         }
 
-        return ACF_Woo_Fasciculos_Utils::get_product_name( $fasciculo_info['product_id'] );
+        return ACF_Woo_Fasciculos_Utils::get_product_names( $fasciculo_info['product_ids'] );
     }
 
     /**
@@ -301,15 +304,15 @@ class ACF_Woo_Fasciculos_Cart {
             return '';
         }
 
-        $product_name = $this->get_current_fasciculo_product_name( $cart_item );
+        $product_names = $this->get_current_fasciculo_product_names( $cart_item );
         $price = $this->get_current_fasciculo_price( $cart_item );
         $week_number = $this->get_current_week_number( $cart_item );
         $total_weeks = $this->get_total_weeks( $cart_item );
 
         return sprintf(
-            /* translators: 1: product name, 2: formatted price, 3: current week, 4: total weeks */
+            /* translators: 1: product names, 2: formatted price, 3: current week, 4: total weeks */
             __( '%1$s — %2$s (Semana %3$d de %4$d)', 'acf-woo-fasciculos' ),
-            $product_name,
+            $product_names,
             ACF_Woo_Fasciculos_Utils::format_price( $price ),
             $week_number,
             $total_weeks

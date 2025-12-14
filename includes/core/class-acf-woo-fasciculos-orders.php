@@ -146,12 +146,17 @@ public function on_renewal_order_created( $renewal_order, $subscription ) {
 
     $renewal_order->save();
 
-    $product_name = ACF_Woo_Fasciculos_Utils::get_product_name( $row['product_id'] );
+    // Obtener los nombres de los productos
+    $product_names = '';
+    if ( isset( $row['product_ids'] ) && is_array( $row['product_ids'] ) ) {
+        $product_names = ACF_Woo_Fasciculos_Utils::get_product_names( $row['product_ids'] );
+    }
+
     $renewal_order->add_order_note( sprintf(
         __( '📦 Fascículo semana %1$d/%2$d: %3$s — %4$s', 'acf-woo-fasciculos' ),
         $active + 1,
         count( $plan ),
-        $product_name,
+        $product_names,
         ACF_Woo_Fasciculos_Utils::format_price( $row['price'] )
     ) );
 }
@@ -384,7 +389,13 @@ private function add_renewal_completion_note( $subscription, $order_id, $new_sta
             return;
         }
 
-        $new_product = wc_get_product( intval( $row['product_id'] ) );
+        // Usar el primer producto de la lista para la renovación
+        $first_product_id = isset( $row['product_ids'][0] ) ? intval( $row['product_ids'][0] ) : 0;
+        if ( ! $first_product_id ) {
+            return;
+        }
+
+        $new_product = wc_get_product( $first_product_id );
         if ( ! $new_product ) {
             return;
         }

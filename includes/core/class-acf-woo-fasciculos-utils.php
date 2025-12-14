@@ -99,6 +99,27 @@ class ACF_Woo_Fasciculos_Utils {
     }
 
     /**
+     * Obtener los nombres de múltiples productos de forma optimizada
+     *
+     * @param array  $product_ids Array de IDs de productos.
+     * @param string $separator Separador entre nombres (por defecto: ', ').
+     * @return string Nombres de productos separados.
+     */
+    public static function get_product_names( $product_ids, $separator = ', ' ) {
+        if ( empty( $product_ids ) || ! is_array( $product_ids ) ) {
+            return '';
+        }
+
+        $names = array();
+        foreach ( $product_ids as $product_id ) {
+            $names[] = self::get_product_name( $product_id );
+        }
+
+        return implode( $separator, $names );
+    }
+
+
+    /**
      * Obtener el plan de fascículos para un producto
      *
      * @param int $product_id ID del producto.
@@ -130,15 +151,27 @@ class ACF_Woo_Fasciculos_Utils {
         // Procesar el plan
         $plan = array();
         foreach ( $rows as $row ) {
-            $product = isset( $row['fasciculo_product'] ) ? $row['fasciculo_product'] : null;
+            $products_field = isset( $row['fasciculo_products'] ) ? $row['fasciculo_products'] : array();
             $price = isset( $row['fasciculo_price'] ) ? floatval( $row['fasciculo_price'] ) : null;
             $note = isset( $row['fasciculo_note'] ) ? wc_clean( $row['fasciculo_note'] ) : '';
 
-            $product_id_from_field = self::get_product_id_from_field( $product );
+            // Procesar múltiples productos
+            $product_ids = array();
+            if ( is_array( $products_field ) && ! empty( $products_field ) ) {
+                foreach ( $products_field as $product_item ) {
+                    $product = isset( $product_item['product'] ) ? $product_item['product'] : null;
+                    $product_id_from_field = self::get_product_id_from_field( $product );
+                    
+                    if ( $product_id_from_field ) {
+                        $product_ids[] = $product_id_from_field;
+                    }
+                }
+            }
 
-            if ( $product_id_from_field && $price !== null ) {
+            // Solo agregar la semana si tiene al menos un producto y un precio
+            if ( ! empty( $product_ids ) && $price !== null ) {
                 $plan[] = array(
-                    'product_id' => $product_id_from_field,
+                    'product_ids' => $product_ids,
                     'price' => $price,
                     'note' => $note,
                 );

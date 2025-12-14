@@ -99,15 +99,18 @@ class ACF_Woo_Fasciculos_Products {
      * @return void
      */
     private function output_plan_table_row( $index, $row ) {
-        // Obtener el nombre del producto de forma optimizada
-        $product_name = ACF_Woo_Fasciculos_Utils::get_product_name( $row['product_id'] );
+        // Obtener los nombres de los productos de forma optimizada
+        $product_names = '';
+        if ( isset( $row['product_ids'] ) && is_array( $row['product_ids'] ) ) {
+            $product_names = ACF_Woo_Fasciculos_Utils::get_product_names( $row['product_ids'] );
+        }
         
         // Número de semana (1-based)
         $week_number = $index + 1;
 
         echo '<tr>';
         echo '<td>' . esc_html( $week_number ) . '</td>';
-        echo '<td>' . esc_html( $product_name ) . '</td>';
+        echo '<td>' . esc_html( $product_names ) . '</td>';
         echo '<td>' . ACF_Woo_Fasciculos_Utils::format_price( $row['price'] ) . '</td>';
         echo '<td>' . esc_html( $row['note'] ) . '</td>';
         echo '</tr>';
@@ -158,20 +161,46 @@ class ACF_Woo_Fasciculos_Products {
     }
 
     /**
-     * Obtener el producto de una semana específica
+     * Obtener los productos de una semana específica
      *
      * @param int $product_id ID del producto principal.
      * @param int $week_index Índice de la semana (0-based).
-     * @return WC_Product|null Producto de la semana o null.
+     * @return array Array de WC_Product o array vacío.
      */
-    public function get_week_product( $product_id, $week_index ) {
+    public function get_week_products( $product_id, $week_index ) {
         $week_info = $this->get_week_info( $product_id, $week_index );
         
-        if ( ! $week_info || ! isset( $week_info['product_id'] ) ) {
-            return null;
+        if ( ! $week_info || ! isset( $week_info['product_ids'] ) || ! is_array( $week_info['product_ids'] ) ) {
+            return array();
         }
 
-        return wc_get_product( $week_info['product_id'] );
+        $products = array();
+        foreach ( $week_info['product_ids'] as $prod_id ) {
+            $product = wc_get_product( $prod_id );
+            if ( $product ) {
+                $products[] = $product;
+            }
+        }
+
+        return $products;
+    }
+
+    /**
+     * Obtener los nombres de los productos de una semana específica
+     *
+     * @param int    $product_id ID del producto principal.
+     * @param int    $week_index Índice de la semana (0-based).
+     * @param string $separator Separador entre nombres.
+     * @return string Nombres de productos separados.
+     */
+    public function get_week_product_names( $product_id, $week_index, $separator = ', ' ) {
+        $week_info = $this->get_week_info( $product_id, $week_index );
+        
+        if ( ! $week_info || ! isset( $week_info['product_ids'] ) ) {
+            return '';
+        }
+
+        return ACF_Woo_Fasciculos_Utils::get_product_names( $week_info['product_ids'], $separator );
     }
 
     /**
@@ -282,8 +311,8 @@ class ACF_Woo_Fasciculos_Products {
         foreach ( $plan as $index => $week ) {
             $debug_info['weeks'][] = array(
                 'week_number' => $index + 1,
-                'product_id' => $week['product_id'],
-                'product_name' => ACF_Woo_Fasciculos_Utils::get_product_name( $week['product_id'] ),
+                'product_ids' => $week['product_ids'],
+                'product_names' => ACF_Woo_Fasciculos_Utils::get_product_names( $week['product_ids'] ),
                 'price' => $week['price'],
                 'note' => $week['note'],
             );

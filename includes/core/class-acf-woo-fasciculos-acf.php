@@ -33,16 +33,24 @@ class ACF_Woo_Fasciculos_ACF {
     public function register_fields() {
         // Verificar que ACF esté activo
         if ( ! function_exists( 'acf_add_local_field_group' ) ) {
+            error_log('ACF no está disponible para registrar campos');
             return;
         }
 
-        // Registrar el grupo de campos
+        error_log('Registrando campos ACF v2 para fascículos');
+
+        // Eliminar el grupo antiguo si existe (forzar limpieza)
+        if ( function_exists( 'acf_remove_local_field_group' ) ) {
+            acf_remove_local_field_group( 'group_fasciculos_plan' );
+        }
+
+        // Registrar el grupo de campos NUEVO
         acf_add_local_field_group( array(
-            'key' => 'group_fasciculos_plan',
-            'title' => __( 'Plan de Fascículos', 'acf-woo-fasciculos' ),
+            'key' => 'group_fasciculos_plan_v2',
+            'title' => __( 'Plan de Fascículos (Múltiples Productos)', 'acf-woo-fasciculos' ),
             'fields' => array(
                 array(
-                    'key' => 'field_fasciculos_plan',
+                    'key' => 'field_fasciculos_plan_v2',
                     'label' => __( 'Fascículos (semanas)', 'acf-woo-fasciculos' ),
                     'name' => ACF_Woo_Fasciculos::META_PLAN_KEY,
                     'type' => 'repeater',
@@ -57,15 +65,15 @@ class ACF_Woo_Fasciculos_ACF {
                     'collapsed' => '',
                     'min' => 0,
                     'max' => 0,
-                    'layout' => 'table',
+                    'layout' => 'row',
                     'button_label' => __( 'Añadir semana', 'acf-woo-fasciculos' ),
                     'sub_fields' => array(
                         array(
-                            'key' => 'field_fasciculo_product',
-                            'label' => __( 'Producto de la semana', 'acf-woo-fasciculos' ),
-                            'name' => 'fasciculo_product',
-                            'type' => 'post_object',
-                            'instructions' => '',
+                            'key' => 'field_fasciculo_products_v2',
+                            'label' => __( 'Productos de la semana', 'acf-woo-fasciculos' ),
+                            'name' => 'fasciculo_products',
+                            'type' => 'repeater',
+                            'instructions' => __( 'Añade uno o más productos para esta semana.', 'acf-woo-fasciculos' ),
                             'required' => 1,
                             'conditional_logic' => 0,
                             'wrapper' => array(
@@ -73,17 +81,38 @@ class ACF_Woo_Fasciculos_ACF {
                                 'class' => '',
                                 'id' => '',
                             ),
-                            'post_type' => array( 'product' ),
-                            'taxonomy' => '',
-                            'return_format' => 'object',
-                            'ui' => 1,
+                            'collapsed' => '',
+                            'min' => 1,
+                            'max' => 0,
+                            'layout' => 'block',
+                            'button_label' => __( 'Añadir producto', 'acf-woo-fasciculos' ),
+                            'sub_fields' => array(
+                                array(
+                                    'key' => 'field_fasciculo_product_item_v2',
+                                    'label' => __( 'Producto', 'acf-woo-fasciculos' ),
+                                    'name' => 'product',
+                                    'type' => 'post_object',
+                                    'instructions' => '',
+                                    'required' => 1,
+                                    'conditional_logic' => 0,
+                                    'wrapper' => array(
+                                        'width' => '',
+                                        'class' => '',
+                                        'id' => '',
+                                    ),
+                                    'post_type' => array( 'product' ),
+                                    'taxonomy' => '',
+                                    'return_format' => 'object',
+                                    'ui' => 1,
+                                ),
+                            ),
                         ),
                         array(
-                            'key' => 'field_fasciculo_price',
-                            'label' => __( 'Precio de la semana', 'acf-woo-fasciculos' ),
+                            'key' => 'field_fasciculo_price_v2',
+                            'label' => __( 'Precio total de la semana', 'acf-woo-fasciculos' ),
                             'name' => 'fasciculo_price',
                             'type' => 'number',
-                            'instructions' => '',
+                            'instructions' => __( 'Precio total que se cobrará por todos los productos de esta semana.', 'acf-woo-fasciculos' ),
                             'required' => 1,
                             'conditional_logic' => 0,
                             'wrapper' => array(
@@ -100,7 +129,7 @@ class ACF_Woo_Fasciculos_ACF {
                             'step' => '0.01',
                         ),
                         array(
-                            'key' => 'field_fasciculo_note',
+                            'key' => 'field_fasciculo_note_v2',
                             'label' => __( 'Nota', 'acf-woo-fasciculos' ),
                             'name' => 'fasciculo_note',
                             'type' => 'text',
@@ -240,7 +269,7 @@ class ACF_Woo_Fasciculos_ACF {
             return array();
         }
 
-        $field_group = acf_get_field_group( 'group_fasciculos_plan' );
+        $field_group = acf_get_field_group( 'group_fasciculos_plan_v2' );
         if ( ! $field_group ) {
             return array();
         }
@@ -333,7 +362,7 @@ class ACF_Woo_Fasciculos_ACF {
                 'acf_add_local_field_group' => function_exists( 'acf_add_local_field_group' ),
                 'acf_get_field_groups' => function_exists( 'acf_get_field_groups' ),
             ),
-            'field_group_registered' => ! ! acf_get_field_group( 'group_fasciculos_plan' ),
+            'field_group_registered' => ! ! acf_get_field_group( 'group_fasciculos_plan_v2' ),
         );
     }
 }
