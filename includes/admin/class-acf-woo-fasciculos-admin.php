@@ -48,6 +48,23 @@ public function show_active_week( $_product, $item, $item_id ) {
         return;
     }
     
+    // Verificar si el item tiene marca de producto incluido (para evitar duplicados)
+    $is_product_item = $item->get_meta( '_product_item' );
+    if ( $is_product_item === 'yes' ) {
+        return; // No mostrar barra en productos individuales
+    }
+    
+    // Obtener el plan del item
+    $plan_json = $item->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+    if ( empty( $plan_json ) ) {
+        return;
+    }
+    
+    $plan = json_decode( $plan_json, true );
+    if ( empty( $plan ) || ! is_array( $plan ) ) {
+        return;
+    }
+    
     // Obtener el índice activo del item
     $active = $item->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
     
@@ -56,29 +73,49 @@ public function show_active_week( $_product, $item, $item_id ) {
         return;
     }
     
-    // Verificar si el item pertenece a una suscripción y obtener el índice actualizado
-    $order_id = $item->get_order_id();
-    if ( $order_id && function_exists( 'wcs_get_subscriptions_for_order' ) ) {
-        $subscriptions = wcs_get_subscriptions_for_order( $order_id, array( 'order_type' => 'any' ) );
-        
-        foreach ( $subscriptions as $subscription ) {
-            if ( ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
-                $subscription_active = $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
-                if ( '' !== $subscription_active && $subscription_active !== null ) {
-                    $active = $subscription_active;
-                    break;
-                }
-            }
-        }
+    $active = intval( $active );
+    $total_weeks = count( $plan );
+    $current_week = $active + 1;
+    
+    // Calcular porcentaje de progreso
+    $progress_percentage = $total_weeks > 0 ? round( ( $current_week / $total_weeks ) * 100 ) : 0;
+    
+    // Determinar el color de la barra según el progreso
+    if ( $progress_percentage >= 100 ) {
+        $bar_color = '#4caf50'; // Verde - completado
+    } elseif ( $progress_percentage >= 50 ) {
+        $bar_color = '#2196f3'; // Azul - más de mitad
+    } else {
+        $bar_color = '#ff9800'; // Naranja - inicio
     }
     
-    // Mostrar la semana actual
-    echo '<div style="font-size:12px;color:#444;">';
+    // Mostrar la barra de progreso
+    echo '<div class="fasciculo-progress-container" style="margin-top:8px;padding:8px;background:#f8f9fa;border-radius:6px;border:1px solid #e0e0e0;">';
+    
+    // Título
+    echo '<div style="font-size:11px;color:#666;margin-bottom:4px;font-weight:600;">📚 Progreso del Plan</div>';
+    
+    // Barra de progreso
+    echo '<div style="background:#e0e0e0;border-radius:4px;height:12px;overflow:hidden;margin-bottom:4px;">';
     printf(
-        /* translators: %d: week number */
-        esc_html__( 'Semana actual fascículos: %d', 'acf-woo-fasciculos' ),
-        intval( $active ) + 1
+        '<div style="background:%s;height:100%%;width:%d%%;transition:width 0.3s ease;border-radius:4px;"></div>',
+        esc_attr( $bar_color ),
+        $progress_percentage
     );
+    echo '</div>';
+    
+    // Texto de estado
+    printf(
+        '<div style="display:flex;justify-content:space-between;font-size:11px;color:#444;">'
+        . '<span><strong>Semana %d</strong> de %d</span>'
+        . '<span style="font-weight:600;color:%s;">%d%%</span>'
+        . '</div>',
+        $current_week,
+        $total_weeks,
+        esc_attr( $bar_color ),
+        $progress_percentage
+    );
+    
     echo '</div>';
 }
 

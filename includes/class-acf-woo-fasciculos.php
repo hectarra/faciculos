@@ -136,11 +136,21 @@ class ACF_Woo_Fasciculos {
         add_filter( 'woocommerce_get_item_data', array( $this->cart_handler, 'display_plan_in_cart' ), 10, 2 );
         add_action( 'woocommerce_before_calculate_totals', array( $this->cart_handler, 'override_cart_prices' ), 20 );
 
+        // Hooks para permitir pago de pedidos fallidos con productos de fascículos
+        add_filter( 'woocommerce_is_purchasable', array( $this->cart_handler, 'allow_fasciculo_products_purchasable' ), 99, 2 );
+        add_filter( 'woocommerce_add_to_cart_validation', array( $this->cart_handler, 'validate_fasciculo_add_to_cart' ), 99, 6 );
+
         // Hooks de pedidos
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this->orders_handler, 'save_plan_to_order_item' ), 10, 4 );
         add_action( 'woocommerce_checkout_subscription_created', array( $this->orders_handler, 'copy_plan_to_subscription' ), 10, 4 );
-        add_action( 'woocommerce_subscription_renewal_order_created', array( $this->orders_handler, 'on_renewal_order_created' ), 10, 2 );
+        add_filter( 'wcs_renewal_order_created', array( $this->orders_handler, 'on_renewal_order_created' ), 10, 2 );
         add_action( 'woocommerce_order_status_changed', array( $this->orders_handler, 'on_order_status_progresses_renewal' ), 10, 4 );
+
+        // Hook para reducir stock de productos fasciculo cuando se paga
+        add_action( 'woocommerce_payment_complete', array( $this->orders_handler, 'reduce_fasciculo_stock_on_payment' ), 10, 1 );
+        
+        // Prevenir reducción automática de stock para pedidos con productos de fascículos
+        add_filter( 'woocommerce_can_reduce_order_stock', array( $this->orders_handler, 'prevent_automatic_stock_reduction' ), 10, 2 );
 
         // Hooks de suscripciones
         add_action( 'woocommerce_subscription_activated', array( $this->subscriptions_handler, 'on_subscription_activated' ), 10, 1 );

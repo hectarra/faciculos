@@ -3,7 +3,7 @@
  * Plugin Name: ACF + Woo Subscriptions Fascículos
  * Plugin URI: https://tuequipo.com/plugins/acf-woo-fasciculos
  * Description: Sistema de suscripción por fascículos para WooCommerce con planes semanales de productos y precios variables
- * Version: 3.0.0
+ * Version: 3.2.0
  * Author: Tu Equipo
  * Author URI: https://tuequipo.com
  * Text Domain: acf-woo-fasciculos
@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define plugin constants.
 if ( ! defined( 'ACF_WOO_FASCICULOS_VERSION' ) ) {
-	define( 'ACF_WOO_FASCICULOS_VERSION', '3.0.0' );
+	define( 'ACF_WOO_FASCICULOS_VERSION', '3.2.0' );
 }
 
 if ( ! defined( 'ACF_WOO_FASCICULOS_PLUGIN_DIR' ) ) {

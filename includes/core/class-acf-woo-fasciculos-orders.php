@@ -108,48 +108,128 @@ class ACF_Woo_Fasciculos_Orders {
     }
 
     /**
-     * Manejar la creación de un pedido de renovación
+     * Manejar la creación de un pedido de renovación (filtro wcs_renewal_order_created)
      *
      * @param WC_Order        $renewal_order Pedido de renovación.
      * @param WC_Subscription $subscription Suscripción relacionada.
-     * @return void
+     * @return WC_Order Pedido de renovación modificado.
      */
 public function on_renewal_order_created( $renewal_order, $subscription ) {
     if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $renewal_order ) || ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
-        return;
+        return $renewal_order;
     }
 
     $plan = $this->get_subscription_plan( $subscription );
     if ( empty( $plan ) ) {
-        return;
+        return $renewal_order;
     }
 
     $active = $this->get_active_index( $subscription );
     
     $row = ACF_Woo_Fasciculos_Utils::get_plan_row( $plan, $active );
     if ( ! $row ) {
-        return;
+        return $renewal_order;
     }
 
+    $new_price = floatval( $row['price'] );
+    $product_ids = isset( $row['product_ids'] ) ? $row['product_ids'] : array();
+
+    // Obtener el producto de suscripción original
+    $subscription_product = null;
+    $subscription_product_name = __( 'Suscripción', 'acf-woo-fasciculos' );
+    $tax_class = '';
+    
+    // Intentar obtener el producto de suscripción desde el pedido padre
+    $parent_order = wc_get_order( $subscription->get_parent_id() );
+    if ( $parent_order ) {
+        foreach ( $parent_order->get_items() as $parent_item ) {
+            if ( $parent_item instanceof WC_Order_Item_Product ) {
+                $product = $parent_item->get_product();
+                if ( $product && $product->is_type( array( 'subscription', 'variable-subscription' ) ) ) {
+                    $subscription_product = $product;
+                    $subscription_product_name = $product->get_name();
+                    $tax_class = $product->get_tax_class();
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Si no se encontró en el pedido padre, buscar en la suscripción
+    if ( ! $subscription_product ) {
+        foreach ( $subscription->get_items() as $sub_item ) {
+            if ( $sub_item instanceof WC_Order_Item_Product ) {
+                // Obtener el nombre del item directamente (puede no tener producto asociado)
+                $item_name = $sub_item->get_name();
+                if ( ! empty( $item_name ) ) {
+                    $subscription_product_name = $item_name;
+                }
+                $product = $sub_item->get_product();
+                if ( $product ) {
+                    if ( $product->is_type( array( 'subscription', 'variable-subscription' ) ) ) {
+                        $subscription_product = $product;
+                        $subscription_product_name = $product->get_name();
+                        $tax_class = $product->get_tax_class();
+                        break;
+                    }
+                }
+                // Si encontramos un item, usar su clase de impuestos
+                $tax_class = $sub_item->get_tax_class();
+                break;
+            }
+        }
+    }
+
+    // Eliminar todos los items existentes del pedido de renovación
     foreach ( $renewal_order->get_items() as $item_id => $item ) {
-        if ( ! $item instanceof WC_Order_Item_Product ) {
+        $renewal_order->remove_item( $item_id );
+    }
+
+    // 1. Agregar primero el item de suscripción con el precio
+    $subscription_item = new WC_Order_Item_Product();
+    if ( $subscription_product ) {
+        $subscription_item->set_product( $subscription_product );
+    }
+    $subscription_item->set_name( $subscription_product_name );
+    $subscription_item->set_quantity( 1 );
+    $subscription_item->set_subtotal( $new_price );
+    $subscription_item->set_total( $new_price );
+    $subscription_item->set_tax_class( $tax_class );
+    $subscription_item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $active );
+    $subscription_item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
+    
+    $renewal_order->add_item( $subscription_item );
+
+    // 2. Agregar todos los productos individuales con precio 0€
+    foreach ( $product_ids as $index => $product_id ) {
+        $product = wc_get_product( intval( $product_id ) );
+        if ( ! $product ) {
             continue;
         }
 
-        $item->delete_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
-        $item->delete_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+        $new_item = new WC_Order_Item_Product();
+        $new_item->set_product( $product );
+        $new_item->set_name( $product->get_name() );
+        $new_item->set_quantity( 1 );
+        $new_item->set_subtotal( 0 );
+        $new_item->set_total( 0 );
+        $new_item->set_tax_class( $product->get_tax_class() );
+        $new_item->add_meta_data( '_product_item', 'yes' );
+        $new_item->add_meta_data( '_fasciculo_included', 'yes' );
+        $new_item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $active );
+        $new_item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ) );
         
-        $item->add_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, $active, true );
-        $item->add_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, wp_json_encode( $plan ), true );
-        $item->save();
+        $renewal_order->add_item( $new_item );
     }
 
+    // Recalcular totales y guardar
+    $renewal_order->calculate_totals();
     $renewal_order->save();
 
-    // Obtener los nombres de los productos
+    // Obtener los nombres de los productos para la nota
     $product_names = '';
-    if ( isset( $row['product_ids'] ) && is_array( $row['product_ids'] ) ) {
-        $product_names = ACF_Woo_Fasciculos_Utils::get_product_names( $row['product_ids'] );
+    if ( ! empty( $product_ids ) ) {
+        $product_names = ACF_Woo_Fasciculos_Utils::get_product_names( $product_ids );
     }
 
     $renewal_order->add_order_note( sprintf(
@@ -157,8 +237,10 @@ public function on_renewal_order_created( $renewal_order, $subscription ) {
         $active + 1,
         count( $plan ),
         $product_names,
-        ACF_Woo_Fasciculos_Utils::format_price( $row['price'] )
+        ACF_Woo_Fasciculos_Utils::format_price( $new_price )
     ) );
+
+    return $renewal_order;
 }
 
 
@@ -486,5 +568,119 @@ private function add_renewal_completion_note( $subscription, $order_id, $new_sta
             'items' => $fasciculos_items,
             'total_items' => count( $fasciculos_items ),
         );
+    }
+
+    /**
+     * Reducir el stock de los productos del fascículo cuando se paga la renovación
+     *
+     * @param int $order_id ID del pedido.
+     * @return void
+     */
+    public function reduce_fasciculo_stock_on_payment( $order_id ) {
+        $order = wc_get_order( $order_id );
+        
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $order ) ) {
+            return;
+        }
+
+        // Verificar si ya se redujo el stock para este pedido
+        if ( $order->get_meta( '_fasciculo_stock_reduced' ) === 'yes' ) {
+            return;
+        }
+
+        // Verificar si es un pedido de renovación o tiene productos de fascículos
+        $has_fasciculos = false;
+        $products_reduced = array();
+
+        foreach ( $order->get_items() as $item_id => $item ) {
+            if ( ! $item instanceof WC_Order_Item_Product ) {
+                continue;
+            }
+
+            // Verificar si el item es un producto de fascículo
+            $is_product_item = $item->get_meta( '_product_item' );
+            $is_fasciculo_included = $item->get_meta( '_fasciculo_included' );
+            
+            if ( $is_product_item === 'yes' || $is_fasciculo_included === 'yes' ) {
+                $has_fasciculos = true;
+                
+                $product = $item->get_product();
+                if ( ! $product ) {
+                    continue;
+                }
+
+                // Solo reducir stock si el producto gestiona stock
+                if ( ! $product->managing_stock() ) {
+                    continue;
+                }
+
+                $product_id = $product->get_id();
+                $qty = $item->get_quantity();
+
+                // Reducir el stock
+                $new_stock = wc_update_product_stock( $product, $qty, 'decrease' );
+                
+                if ( $new_stock !== false ) {
+                    $products_reduced[] = sprintf(
+                        '%s (-%d → stock: %d)',
+                        $product->get_name(),
+                        $qty,
+                        $new_stock
+                    );
+                }
+            }
+        }
+
+        // Si se redujo algún stock, marcar el pedido y agregar nota
+        if ( $has_fasciculos && ! empty( $products_reduced ) ) {
+            $order->update_meta_data( '_fasciculo_stock_reduced', 'yes' );
+            $order->save();
+
+            $order->add_order_note( sprintf(
+                __( '📦 Stock reducido para productos del fascículo: %s', 'acf-woo-fasciculos' ),
+                implode( ', ', $products_reduced )
+            ) );
+        }
+    }
+
+    /**
+     * Prevenir la reducción automática de stock para pedidos con productos de fascículos
+     *
+     * Este filtro evita que WooCommerce reduzca automáticamente el stock
+     * para los productos de fascículos. El stock solo se reduce cuando
+     * se paga el pedido mediante el hook woocommerce_payment_complete.
+     *
+     * @param bool     $reduce_stock Si se debe reducir el stock.
+     * @param WC_Order $order Pedido.
+     * @return bool False para prevenir reducción automática en pedidos de fascículos.
+     */
+    public function prevent_automatic_stock_reduction( $reduce_stock, $order ) {
+        if ( ! $reduce_stock ) {
+            return $reduce_stock;
+        }
+
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $order ) ) {
+            return $reduce_stock;
+        }
+
+        // Verificar si el pedido tiene productos de fascículos
+        foreach ( $order->get_items() as $item ) {
+            if ( ! $item instanceof WC_Order_Item_Product ) {
+                continue;
+            }
+
+            // Verificar si es un item de fascículo
+            $is_product_item = $item->get_meta( '_product_item' );
+            $is_fasciculo_included = $item->get_meta( '_fasciculo_included' );
+            $has_plan = $item->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+
+            if ( $is_product_item === 'yes' || $is_fasciculo_included === 'yes' || ! empty( $has_plan ) ) {
+                // Pedido tiene productos de fascículos - prevenir reducción automática
+                // El stock se reducirá manualmente en reduce_fasciculo_stock_on_payment
+                return false;
+            }
+        }
+
+        return $reduce_stock;
     }
 }
