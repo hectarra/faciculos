@@ -65,6 +65,13 @@ class ACF_Woo_Fasciculos {
     private $admin_handler;
 
     /**
+     * Instancia del manejador del checkout
+     *
+     * @var ACF_Woo_Fasciculos_Checkout
+     */
+    private $checkout_handler;
+
+    /**
      * Constantes para metadatos
      */
     const META_PLAN_KEY = 'fasciculos_plan';
@@ -106,6 +113,7 @@ class ACF_Woo_Fasciculos {
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-orders.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-acf.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/admin/class-acf-woo-fasciculos-admin.php';
+        require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-checkout.php';
     }
 
     /**
@@ -121,6 +129,7 @@ class ACF_Woo_Fasciculos {
         $this->acf_handler = new ACF_Woo_Fasciculos_ACF();
         // Pasar el manejador de suscripciones al admin
         $this->admin_handler = new ACF_Woo_Fasciculos_Admin( $this->subscriptions_handler );
+        $this->checkout_handler = new ACF_Woo_Fasciculos_Checkout();
     }
 
     /**
@@ -181,6 +190,11 @@ class ACF_Woo_Fasciculos {
         add_filter( 'wcs_can_user_renew_early_subscription', array( $this->subscriptions_handler, 'disable_early_renewal' ), 999, 2 );
         add_filter( 'wcs_subscription_can_be_renewed_early', array( $this->subscriptions_handler, 'disable_early_renewal' ), 999, 2 );
 
+        // Hooks para creación automática de usuarios en checkout
+        add_action( 'woocommerce_checkout_order_created', array( $this->checkout_handler, 'process_new_user_after_order' ), 5, 3 );
+        add_filter( 'woocommerce_checkout_fields', array( $this->checkout_handler, 'maybe_require_account_fields' ), 10, 1 );
+        add_action( 'woocommerce_before_checkout_billing_form', array( $this->checkout_handler, 'add_auto_account_notice' ), 10 );
+        add_filter( 'woocommerce_checkout_registration_required', array( $this->checkout_handler, 'force_account_creation_for_fasciculos' ), 10, 1 );
     }
 
     /**
@@ -235,5 +249,14 @@ class ACF_Woo_Fasciculos {
      */
     public function get_admin_handler() {
         return $this->admin_handler;
+    }
+
+    /**
+     * Obtener el manejador del checkout
+     *
+     * @return ACF_Woo_Fasciculos_Checkout
+     */
+    public function get_checkout_handler() {
+        return $this->checkout_handler;
     }
 }

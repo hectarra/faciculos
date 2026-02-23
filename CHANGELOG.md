@@ -5,6 +5,61 @@ Todos los cambios notables en este plugin serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 
+## [3.4.1] - 2025-12-26
+
+### Cambiado
+- **Nombre del plugin**: Cambiado a "Coleccionables Singulari"
+- **Autor**: Actualizado a "Héctor & Ledys"
+- **URLs**: Actualizadas a grupo-pro.es
+
+---
+
+## [3.4.0] - 2025-12-26
+
+### Añadido
+- **Creación automática de usuarios durante el checkout**
+  - Crea automáticamente una cuenta de cliente cuando un usuario no registrado compra una suscripción de fascículos
+  - Genera contraseña segura automáticamente
+  - Asigna el usuario al pedido y a la suscripción
+  - Guarda la dirección de facturación en el perfil del usuario
+
+- **Email con datos de acceso**
+  - Envío automático de email HTML con las credenciales de acceso (usuario y contraseña)
+  - Diseño profesional que respeta los colores configurados en WooCommerce
+  - Incluye botón de acceso directo a "Mi cuenta"
+  
+- **Mejoras en el checkout**
+  - Aviso informativo en el checkout indicando que se creará una cuenta automáticamente
+  - Oculta campos innecesarios de "crear cuenta" ya que la creación es automática
+  - Si ya existe un usuario con el email, se asigna automáticamente al pedido
+
+### Clases nuevas
+- `ACF_Woo_Fasciculos_Checkout` - Manejador de la creación automática de usuarios en checkout
+
+### Funciones nuevas
+- `process_new_user_after_order()` - Procesa la creación de usuario tras crear el pedido
+- `create_user_for_order()` - Crea el usuario con los datos del pedido
+- `send_credentials_email()` - Envía email con las credenciales
+- `force_account_creation_for_fasciculos()` - Fuerza requerir cuenta para suscripciones de fascículos
+- `maybe_require_account_fields()` - Modifica campos del checkout
+- `add_auto_account_notice()` - Agrega aviso informativo en el checkout
+
+### Hooks
+- Nuevo action hook: `acf_woo_fasciculos_user_created` - Se ejecuta después de crear un usuario
+- Nuevo filter hook: `acf_woo_fasciculos_credentials_email_args` - Permite modificar el email de credenciales
+
+---
+
+## [3.3.1] - 2024-12-24
+
+### Corregido
+- **Eliminados logs de debug en producción**
+  - Eliminadas llamadas a `error_log()` en el registro de campos ACF
+  - Solucionados mensajes NOTICE repetidos: "Registrando campos ACF v2 para fascículos"
+  - Archivo afectado: `class-acf-woo-fasciculos-acf.php`
+
+---
+
 ## [3.3.0]
 
 ### Añadido

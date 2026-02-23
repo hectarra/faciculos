@@ -33,11 +33,8 @@ class ACF_Woo_Fasciculos_ACF {
     public function register_fields() {
         // Verificar que ACF esté activo
         if ( ! function_exists( 'acf_add_local_field_group' ) ) {
-            error_log('ACF no está disponible para registrar campos');
             return;
         }
-
-        error_log('Registrando campos ACF v2 para fascículos');
 
         // Eliminar el grupo antiguo si existe (forzar limpieza)
         if ( function_exists( 'acf_remove_local_field_group' ) ) {
