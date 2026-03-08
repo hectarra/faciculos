@@ -120,7 +120,7 @@ class ACF_Woo_Fasciculos_CSV_Importer {
                                     <td>
                                         <input type="file" name="csv_file" id="csv_file" accept=".csv,text/csv" required>
                                         <p class="description">
-                                            <?php esc_html_e( 'Sube un archivo .csv con las columnas: order, product_ids, price, note.', 'acf-woo-fasciculos' ); ?>
+                                            <?php esc_html_e( 'Sube un archivo .csv con las columnas: order, product_id, price, note.', 'acf-woo-fasciculos' ); ?>
                                             <a href="<?php echo esc_url( $template_url ); ?>" target="_blank">
                                                 <?php esc_html_e( '⬇️ Descargar plantilla de ejemplo', 'acf-woo-fasciculos' ); ?>
                                             </a>
@@ -166,13 +166,13 @@ class ACF_Woo_Fasciculos_CSV_Importer {
                                     <td><code>1</code></td>
                                 </tr>
                                 <tr>
-                                    <td><code>product_ids</code></td>
-                                    <td><?php esc_html_e( 'ID(s) de producto, separados por |', 'acf-woo-fasciculos' ); ?></td>
-                                    <td><code>123|456</code></td>
+                                    <td><code>product_id</code></td>
+                                    <td><?php esc_html_e( 'ID del producto individual', 'acf-woo-fasciculos' ); ?></td>
+                                    <td><code>123</code></td>
                                 </tr>
                                 <tr>
                                     <td><code>price</code></td>
-                                    <td><?php esc_html_e( 'Precio de esa semana (usa punto como decimal)', 'acf-woo-fasciculos' ); ?></td>
+                                    <td><?php esc_html_e( 'Precio de ese producto (se sumará al total de la semana)', 'acf-woo-fasciculos' ); ?></td>
                                     <td><code>12.99</code></td>
                                 </tr>
                                 <tr>
@@ -184,9 +184,11 @@ class ACF_Woo_Fasciculos_CSV_Importer {
                         </table>
 
                         <p style="margin-top:16px;"><strong><?php esc_html_e( 'Ejemplo:', 'acf-woo-fasciculos' ); ?></strong></p>
-                        <pre style="background:#f0f0f1;padding:12px;border-radius:4px;font-size:12px;overflow:auto;">order,product_ids,price,note
-1,123,9.99,
-2,456|789,14.50,Dos productos
+                        <pre style="background:#f0f0f1;padding:12px;border-radius:4px;font-size:12px;overflow:auto;">order,product_id,price,note
+1,123,10,jjj
+1,124,15,hhh
+2,456,14.50,Dos productos
+2,789,5.00,
 3,321,9.99,Edición especial
 4,111,12.00,</pre>
 
@@ -370,9 +372,9 @@ class ACF_Woo_Fasciculos_CSV_Importer {
      *
      * El CSV puede tener la cabecera en cualquier orden. Las columnas requeridas son:
      * - order: número de semana (entero)
-     * - product_ids: IDs de producto separados por | 
-     * - price: precio en formato numérico
-     * - note: (opcional) texto descriptivo
+     * - product_id: ID del producto
+     * - price: precio en formato numérico del producto (se suma al total de la semana)
+     * - note: (opcional) texto descriptivo (se concatenarán las notas de la misma semana)
      *
      * El array resultante tiene el formato que ACF espera para el repeater:
      * [
@@ -414,7 +416,7 @@ class ACF_Woo_Fasciculos_CSV_Importer {
         }, $header_raw );
 
         // Verificar columnas requeridas
-        $required_columns = array( 'order', 'product_ids', 'price' );
+        $required_columns = array( 'order', 'product_id', 'price' );
         foreach ( $required_columns as $col ) {
             if ( ! in_array( $col, $headers, true ) ) {
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fclose
@@ -450,8 +452,8 @@ class ACF_Woo_Fasciculos_CSV_Importer {
             $order_val  = isset( $col_index['order'] ) && isset( $data[ $col_index['order'] ] )
                 ? trim( $data[ $col_index['order'] ] )
                 : '';
-            $pids_raw   = isset( $col_index['product_ids'] ) && isset( $data[ $col_index['product_ids'] ] )
-                ? trim( $data[ $col_index['product_ids'] ] )
+            $pid_raw    = isset( $col_index['product_id'] ) && isset( $data[ $col_index['product_id'] ] )
+                ? trim( $data[ $col_index['product_id'] ] )
                 : '';
             $price_raw  = isset( $col_index['price'] ) && isset( $data[ $col_index['price'] ] )
                 ? trim( $data[ $col_index['price'] ] )
@@ -483,71 +485,61 @@ class ACF_Woo_Fasciculos_CSV_Importer {
                 continue;
             }
 
-            // Procesar IDs de productos
-            $raw_ids     = array_filter( array_map( 'trim', explode( '|', $pids_raw ) ) );
-            $valid_prods = array();
-            $has_error   = false;
-
-            foreach ( $raw_ids as $pid ) {
-                if ( ! is_numeric( $pid ) ) {
-                    $warnings[] = sprintf(
-                        /* translators: 1: row number, 2: value */
-                        __( 'Fila %1$d: ID de producto no numérico ignorado ("%2$s").', 'acf-woo-fasciculos' ),
-                        $row_num,
-                        $pid
-                    );
-                    continue;
-                }
-
-                $pid_int = intval( $pid );
-                $product = wc_get_product( $pid_int );
-
-                if ( ! $product ) {
-                    $warnings[] = sprintf(
-                        /* translators: 1: row number, 2: product ID */
-                        __( 'Fila %1$d: Producto con ID %2$d no encontrado.', 'acf-woo-fasciculos' ),
-                        $row_num,
-                        $pid_int
-                    );
-
-                    if ( ! $skip_invalid ) {
-                        $has_error = true;
-                        break;
-                    }
-                    continue;
-                }
-
-                $valid_prods[] = $pid_int;
-            }
-
-            if ( $has_error ) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fclose
-                fclose( $handle );
-                return new WP_Error(
-                    'invalid_product',
-                    sprintf(
-                        /* translators: %d: row number */
-                        __( 'Fila %d: Se encontró un producto inválido y la opción "omitir inválidos" está desactivada. Importación abortada.', 'acf-woo-fasciculos' ),
-                        $row_num
-                    )
-                );
-            }
-
-            if ( empty( $valid_prods ) ) {
+            // Procesar ID de producto
+            if ( ! is_numeric( $pid_raw ) ) {
                 $warnings[] = sprintf(
-                    /* translators: %d: row number */
-                    __( 'Fila %d ignorada: no hay productos válidos.', 'acf-woo-fasciculos' ),
-                    $row_num
+                    /* translators: 1: row number, 2: value */
+                    __( 'Fila %1$d ignorada: ID de producto no numérico ("%2$s").', 'acf-woo-fasciculos' ),
+                    $row_num,
+                    $pid_raw
                 );
                 continue;
             }
 
-            $rows[] = array(
-                'order'       => intval( $order_val ),
-                'products'    => $valid_prods,
-                'price'       => floatval( $price_val ),
-                'note'        => sanitize_text_field( $note_raw ),
-            );
+            $pid_int = intval( $pid_raw );
+            $product = wc_get_product( $pid_int );
+
+            if ( ! $product ) {
+                $warnings[] = sprintf(
+                    /* translators: 1: row number, 2: product ID */
+                    __( 'Fila %1$d: Producto con ID %2$d no encontrado.', 'acf-woo-fasciculos' ),
+                    $row_num,
+                    $pid_int
+                );
+
+                if ( ! $skip_invalid ) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fclose
+                    fclose( $handle );
+                    return new WP_Error(
+                        'invalid_product',
+                        sprintf(
+                            /* translators: %d: row number */
+                            __( 'Fila %d: Se encontró un producto inválido y la opción "omitir inválidos" está desactivada. Importación abortada.', 'acf-woo-fasciculos' ),
+                            $row_num
+                        )
+                    );
+                }
+                continue;
+            }
+
+            // Agrupar por 'order' (semana)
+            $order_int = intval( $order_val );
+            if ( ! isset( $rows[ $order_int ] ) ) {
+                $rows[ $order_int ] = array(
+                    'order'    => $order_int,
+                    'products' => array(),
+                    'price'    => 0.0,
+                    'notes'    => array(),
+                );
+            }
+
+            $rows[ $order_int ]['products'][] = $pid_int;
+            $rows[ $order_int ]['price']     += floatval( $price_val );
+
+            $clean_note = sanitize_text_field( $note_raw );
+            if ( ! empty( $clean_note ) ) {
+                $rows[ $order_int ]['notes'][] = $clean_note;
+            }
         }
 
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fclose
@@ -560,10 +552,8 @@ class ACF_Woo_Fasciculos_CSV_Importer {
             );
         }
 
-        // Ordenar por la columna 'order'
-        usort( $rows, function( $a, $b ) {
-            return $a['order'] - $b['order'];
-        } );
+        // Ordenar por la clave (que es la columna 'order')
+        ksort( $rows );
 
         // Construir el plan en el formato de ACF repeater
         $plan = array();
@@ -575,10 +565,12 @@ class ACF_Woo_Fasciculos_CSV_Importer {
                 );
             }
 
+            $note_str = implode( ' | ', array_unique( $row['notes'] ) );
+
             $plan[] = array(
                 'fasciculo_products' => $fasciculo_products,
-                'fasciculo_price'    => $row['price'],
-                'fasciculo_note'     => $row['note'],
+                'fasciculo_price'    => round( $row['price'], 2 ),
+                'fasciculo_note'     => $note_str,
             );
         }
 
@@ -611,11 +603,15 @@ class ACF_Woo_Fasciculos_CSV_Importer {
         fwrite( $out, "\xEF\xBB\xBF" );
 
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fputcsv
-        fputcsv( $out, array( 'order', 'product_ids', 'price', 'note' ) );
+        fputcsv( $out, array( 'order', 'product_id', 'price', 'note' ) );
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fputcsv
-        fputcsv( $out, array( 1, '123', '9.99', '' ) );
+        fputcsv( $out, array( 1, '123', '10.00', 'Producto 1 de semana 1' ) );
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fputcsv
-        fputcsv( $out, array( 2, '456|789', '14.50', 'Dos productos esta semana' ) );
+        fputcsv( $out, array( 1, '124', '15.00', 'Producto 2 de semana 1' ) );
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fputcsv
+        fputcsv( $out, array( 2, '456', '14.50', 'Dos productos esta semana' ) );
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fputcsv
+        fputcsv( $out, array( 2, '789', '5.00', '' ) );
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fputcsv
         fputcsv( $out, array( 3, '321', '9.99', 'Edición especial' ) );
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fputcsv
