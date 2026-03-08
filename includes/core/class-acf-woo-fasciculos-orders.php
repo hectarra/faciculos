@@ -805,19 +805,24 @@ private function add_renewal_completion_note( $subscription, $order_id, $new_sta
             if ( ! empty( $coupon_code ) ) {
                 $coupon_code = wc_strtolower( sanitize_text_field( $coupon_code ) );
 
-                // Verificar que el cupón existe en WooCommerce
-                $coupon = new WC_Coupon( $coupon_code );
-                if ( $coupon->get_id() > 0 ) {
-                    // Guardar en meta de la suscripción
-                    $subscription->update_meta_data( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON, $coupon_code );
-                    $subscription->save();
+                // Verificar si este cupón fue aplicado en el pedido original
+                $applied_coupons = array_map( 'wc_strtolower', $order->get_coupon_codes() );
 
-                    // Agregar nota informativa
-                    $subscription->add_order_note( sprintf(
-                        /* translators: %s: coupon code */
-                        __( '🏷️ Cupón de descuento configurado para renovaciones: %s', 'acf-woo-fasciculos' ),
-                        strtoupper( $coupon_code )
-                    ) );
+                if ( in_array( $coupon_code, $applied_coupons, true ) ) {
+                    // Verificar que el cupón existe en WooCommerce
+                    $coupon = new WC_Coupon( $coupon_code );
+                    if ( $coupon->get_id() > 0 ) {
+                        // Guardar en meta de la suscripción
+                        $subscription->update_meta_data( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON, $coupon_code );
+                        $subscription->save();
+
+                        // Agregar nota informativa
+                        $subscription->add_order_note( sprintf(
+                            /* translators: %s: coupon code */
+                            __( '🏷️ Cupón de descuento configurado para renovaciones (aplicado en pedido inicial): %s', 'acf-woo-fasciculos' ),
+                            strtoupper( $coupon_code )
+                        ) );
+                    }
                 }
             }
 
