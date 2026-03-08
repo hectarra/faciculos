@@ -5,6 +5,28 @@ Todos los cambios notables en este plugin serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 
+## [3.7.0] - 2026-03-08
+
+### Añadido
+- **Importación de planes de fascículos desde CSV**
+  - Nueva página en **WooCommerce → Importar Plan CSV** en el panel de administración
+  - Permite seleccionar un producto de suscripción y subir un CSV para generar/reemplazar su plan de fascículos automáticamente
+  - Formato CSV: columnas `order`, `product_ids` (separados con `|`), `price`, `note`
+  - Valida existencia de productos antes de importar
+  - Opción para omitir productos inválidos o abortar la importación
+  - Botón de descarga de plantilla CSV de ejemplo (con BOM para compatibilidad con Excel)
+  - Mensajes de éxito, advertencia y error descriptivos tras la importación
+
+### Clases nuevas
+- `ACF_Woo_Fasciculos_CSV_Importer` - Maneja el formulario de subida, parseo del CSV y guardado en ACF
+
+### Hooks
+- `admin_menu` → `register_admin_menu` — Registra la página de submenú en WooCommerce
+- `admin_post_acf_woo_fasciculos_import_csv` → `handle_csv_upload` — Procesa el formulario de importación
+- `admin_post_acf_woo_fasciculos_download_template` → `download_csv_template` — Sirve la plantilla CSV
+
+---
+
 ## [3.6.0] - 2026-03-06
 
 ### Añadido

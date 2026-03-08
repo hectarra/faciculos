@@ -969,4 +969,87 @@ class ACF_Woo_Fasciculos_Cart {
 
         return false;
     }
+
+    /**
+     * Impedir duplicados de la misma suscripción de fascículos en el carrito
+     *
+     * Permite tener suscripciones DIFERENTES (ej: Minerales + Rocas), pero
+     * impide agregar dos veces el MISMO producto de suscripción.
+     * Así cada suscripción genera su propio flujo independiente.
+     *
+     * @param bool $passed Resultado de la validación.
+     * @param int  $product_id ID del producto que se intenta agregar.
+     * @param int  $quantity Cantidad.
+     * @return bool True si se permite agregar, false si no.
+     * @since 3.7.0
+     */
+    public function enforce_single_subscription_cart( $passed, $product_id, $quantity ) {
+        // Si ya falló la validación, no hacer nada.
+        if ( ! $passed ) {
+            return false;
+        }
+
+        // Obtener el producto que se intenta agregar.
+        $product = wc_get_product( $product_id );
+        if ( ! $product ) {
+            return $passed;
+        }
+
+        // Solo actuar si el producto nuevo es una suscripción con plan de fascículos.
+        if ( ! ACF_Woo_Fasciculos_Utils::is_subscription_product( $product ) ) {
+            return $passed;
+        }
+
+        $plan = ACF_Woo_Fasciculos_Utils::get_plan_for_product( $product_id );
+        if ( empty( $plan ) ) {
+            return $passed;
+        }
+
+        // Verificar si este MISMO producto ya está en el carrito.
+        $cart = WC()->cart;
+        if ( ! $cart || $cart->is_empty() ) {
+            return $passed;
+        }
+
+        foreach ( $cart->get_cart() as $cart_item ) {
+            $cart_product_id = $cart_item['product_id'];
+
+            // Si el mismo producto ya está en el carrito, impedir agregarlo de nuevo.
+            if ( (int) $cart_product_id === (int) $product_id ) {
+                wc_add_notice(
+                    __( 'Ya tienes esta suscripción en el carrito. Solo puedes tener una unidad de cada suscripción de fascículos.', 'acf-woo-fasciculos' ),
+                    'error'
+                );
+                return false;
+            }
+        }
+
+        return $passed;
+    }
+
+    /**
+     * Forzar suscripciones independientes por cada producto
+     *
+     * WooCommerce Subscriptions agrupa productos con el mismo período de facturación
+     * en una sola suscripción. Este filtro modifica la clave de agrupación para que
+     * cada producto genere su propia suscripción independiente.
+     *
+     * @param string $cart_key Clave de agrupación para el carrito recurrente.
+     * @param array  $cart_item Item del carrito.
+     * @return string Clave modificada con el ID del producto.
+     * @since 3.7.0
+     */
+    public function force_separate_subscriptions( $cart_key, $cart_item ) {
+        if ( isset( $cart_item['product_id'] ) ) {
+            $product_id = $cart_item['product_id'];
+            $plan = ACF_Woo_Fasciculos_Utils::get_plan_for_product( $product_id );
+
+            // Solo separar suscripciones que tienen plan de fascículos.
+            if ( ! empty( $plan ) ) {
+                $cart_key .= '_product_' . $product_id;
+            }
+        }
+
+        return $cart_key;
+    }
 }

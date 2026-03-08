@@ -83,21 +83,35 @@ class ACF_Woo_Fasciculos_Orders {
 
         $plan_copied = false;
 
-        // Recorrer los items del pedido
-        foreach ( $order->get_items() as $order_item_id => $order_item ) {
-            // Copiar el plan
-            $plan_json = $order_item->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
-            if ( $plan_json ) {
-                $subscription->update_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, $plan_json );
-                $plan_copied = true;
-            }
+        // Recorrer los items de la SUSCRIPCIÓN (no del pedido padre)
+        // Esto es clave cuando hay múltiples suscripciones en un mismo pedido:
+        // cada suscripción solo contiene sus propios items.
+        foreach ( $subscription->get_items() as $sub_item_id => $sub_item ) {
+            // Obtener el product_id de la suscripción
+            $sub_product_id = $sub_item->get_product_id();
 
-            // Copiar el índice activo
-            $index = $order_item->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
-            if ( '' !== $index && $index !== null ) {
-                $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, intval( $index ) );
-            } else {
-                $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, 0 );
+            // Buscar el plan en los items del pedido original que correspondan a este producto
+            foreach ( $order->get_items() as $order_item_id => $order_item ) {
+                if ( $order_item->get_product_id() !== $sub_product_id ) {
+                    continue;
+                }
+
+                // Copiar el plan
+                $plan_json = $order_item->get_meta( ACF_Woo_Fasciculos::META_PLAN_CACHE );
+                if ( $plan_json ) {
+                    $subscription->update_meta_data( ACF_Woo_Fasciculos::META_PLAN_CACHE, $plan_json );
+                    $plan_copied = true;
+                }
+
+                // Copiar el índice activo
+                $index = $order_item->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX );
+                if ( '' !== $index && $index !== null ) {
+                    $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, intval( $index ) );
+                } else {
+                    $subscription->update_meta_data( ACF_Woo_Fasciculos::META_ACTIVE_INDEX, 0 );
+                }
+
+                break; // Encontrado, no seguir buscando
             }
         }
 

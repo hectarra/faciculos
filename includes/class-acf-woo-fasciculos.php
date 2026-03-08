@@ -65,6 +65,13 @@ class ACF_Woo_Fasciculos {
     private $admin_handler;
 
     /**
+     * Instancia del importador CSV
+     *
+     * @var ACF_Woo_Fasciculos_CSV_Importer
+     */
+    private $csv_importer;
+
+    /**
      * Instancia del manejador del checkout
      *
      * @var ACF_Woo_Fasciculos_Checkout
@@ -114,6 +121,7 @@ class ACF_Woo_Fasciculos {
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-orders.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-acf.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/admin/class-acf-woo-fasciculos-admin.php';
+        require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/admin/class-acf-woo-fasciculos-csv-importer.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-checkout.php';
     }
 
@@ -131,6 +139,7 @@ class ACF_Woo_Fasciculos {
         // Pasar el manejador de suscripciones al admin
         $this->admin_handler = new ACF_Woo_Fasciculos_Admin( $this->subscriptions_handler );
         $this->checkout_handler = new ACF_Woo_Fasciculos_Checkout();
+        $this->csv_importer = new ACF_Woo_Fasciculos_CSV_Importer();
     }
 
     /**
@@ -179,6 +188,9 @@ class ACF_Woo_Fasciculos {
         add_action( 'woocommerce_admin_order_item_values', array( $this->admin_handler, 'show_active_week' ), 10, 3 );
         add_filter( 'woocommerce_hidden_order_itemmeta', array( $this->admin_handler, 'hide_internal_meta' ) );
 
+        // Hooks del importador CSV
+        $this->csv_importer->register_hooks();
+
         // Agregar este hook después de los hooks existentes de suscripciones
         add_action( 'woocommerce_order_status_changed', array( $this->subscriptions_handler, 'process_pending_cancellation' ), 15, 1 );
 
@@ -200,6 +212,15 @@ class ACF_Woo_Fasciculos {
 
         // Filtrar tienda: solo productos de suscripción
         add_action( 'pre_get_posts', array( $this->products_handler, 'filter_shop_subscription_only' ) );
+
+        // Permitir múltiples suscripciones diferentes en el carrito
+        add_filter( 'woocommerce_subscriptions_multiple_purchase', '__return_true' );
+
+        // Impedir duplicados del mismo producto de suscripción de fascículos
+        add_filter( 'woocommerce_add_to_cart_validation', array( $this->cart_handler, 'enforce_single_subscription_cart' ), 5, 3 );
+
+        // Forzar suscripciones independientes por cada producto (no agrupar)
+        add_filter( 'woocommerce_subscriptions_recurring_cart_key', array( $this->cart_handler, 'force_separate_subscriptions' ), 10, 2 );
     }
 
     /**
