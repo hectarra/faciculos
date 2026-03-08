@@ -67,12 +67,12 @@ class ACF_Woo_Fasciculos_Checkout {
     /**
      * Procesar la creación de usuario después de crear el pedido
      *
-     * @param int      $order_id ID del pedido.
-     * @param array    $posted_data Datos enviados en el checkout.
      * @param WC_Order $order Objeto del pedido.
      * @return void
      */
-    public function process_new_user_after_order( $order_id, $posted_data, $order ) {
+    public function process_new_user_after_order( $order ) {
+        $order_id = $order->get_id();
+
         // Si ya está logueado, no hacer nada
         if ( is_user_logged_in() && get_current_user_id() > 0 ) {
             // Verificar si el pedido ya tiene un customer asignado

@@ -292,6 +292,9 @@ public function on_renewal_order_created( $renewal_order, $subscription ) {
     $renewal_order->calculate_totals();
     $renewal_order->save();
 
+    // Aplicar cupón de descuento si existe
+    $this->apply_discount_coupon_to_renewal( $renewal_order, $subscription );
+
     // Obtener los nombres de los productos para la nota
     $product_names = '';
     if ( ! empty( $product_ids ) ) {
@@ -748,5 +751,109 @@ private function add_renewal_completion_note( $subscription, $order_id, $new_sta
         }
 
         return $reduce_stock;
+    }
+
+    /**
+     * Copiar código de cupón de descuento a la suscripción al crearla
+     *
+     * Este método se ejecuta cuando se crea una suscripción desde un pedido.
+     * Busca si el producto tiene configurado un cupón de descuento para renovaciones
+     * y lo guarda en los metadatos de la suscripción.
+     *
+     * @param WC_Subscription $subscription Suscripción creada.
+     * @param WC_Order        $order Pedido original.
+     * @param mixed           $recurring_cart Carrito recurrente.
+     * @return void
+     */
+    public function copy_coupon_to_subscription( $subscription, $order, $recurring_cart = null ) {
+        // Validar suscripción
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+            return;
+        }
+
+        // Buscar producto con plan de fascículos en la suscripción
+        foreach ( $subscription->get_items() as $item ) {
+            if ( ! $item instanceof WC_Order_Item_Product ) {
+                continue;
+            }
+
+            $product_id = $item->get_product_id();
+
+            // Verificar si tiene plan de fascículos
+            $plan = ACF_Woo_Fasciculos_Utils::get_plan_for_product( $product_id );
+            if ( empty( $plan ) ) {
+                continue;
+            }
+
+            // Obtener cupón de descuento desde ACF
+            $coupon_code = get_field( 'fasciculo_discount_coupon', $product_id );
+
+            if ( ! empty( $coupon_code ) ) {
+                $coupon_code = wc_strtolower( sanitize_text_field( $coupon_code ) );
+
+                // Verificar que el cupón existe en WooCommerce
+                $coupon = new WC_Coupon( $coupon_code );
+                if ( $coupon->get_id() > 0 ) {
+                    // Guardar en meta de la suscripción
+                    $subscription->update_meta_data( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON, $coupon_code );
+                    $subscription->save();
+
+                    // Agregar nota informativa
+                    $subscription->add_order_note( sprintf(
+                        /* translators: %s: coupon code */
+                        __( '🏷️ Cupón de descuento configurado para renovaciones: %s', 'acf-woo-fasciculos' ),
+                        strtoupper( $coupon_code )
+                    ) );
+                }
+            }
+
+            break; // Solo procesar el primer producto con plan
+        }
+    }
+
+    /**
+     * Aplicar cupón de descuento a un pedido de renovación
+     *
+     * Busca si la suscripción tiene un cupón de descuento configurado
+     * y lo aplica al pedido de renovación.
+     *
+     * @param WC_Order        $renewal_order Pedido de renovación.
+     * @param WC_Subscription $subscription Suscripción relacionada.
+     * @return void
+     */
+    private function apply_discount_coupon_to_renewal( $renewal_order, $subscription ) {
+        // Obtener el código de cupón desde la suscripción
+        $coupon_code = $subscription->get_meta( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
+
+        if ( empty( $coupon_code ) ) {
+            return;
+        }
+
+        // Verificar que el cupón existe y es válido
+        $coupon = new WC_Coupon( $coupon_code );
+        if ( ! $coupon->get_id() ) {
+            return;
+        }
+
+        // Verificar que el cupón no esté ya aplicado
+        $applied_coupons = $renewal_order->get_coupon_codes();
+        if ( in_array( $coupon_code, $applied_coupons, true ) ) {
+            return;
+        }
+
+        // Aplicar el cupón al pedido de renovación
+        $result = $renewal_order->apply_coupon( $coupon );
+
+        if ( ! is_wp_error( $result ) ) {
+            $renewal_order->calculate_totals();
+            $renewal_order->save();
+
+            $renewal_order->add_order_note( sprintf(
+                /* translators: 1: coupon code, 2: discount amount */
+                __( '🏷️ Cupón de descuento aplicado: %1$s (-%2$s)', 'acf-woo-fasciculos' ),
+                strtoupper( $coupon_code ),
+                ACF_Woo_Fasciculos_Utils::format_price( $renewal_order->get_discount_total() )
+            ) );
+        }
     }
 }

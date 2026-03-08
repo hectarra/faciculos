@@ -167,6 +167,25 @@ class ACF_Woo_Fasciculos_ACF {
                     'max' => 365,
                     'step' => 1,
                 ),
+                array(
+                    'key' => 'field_fasciculo_discount_coupon',
+                    'label' => __( 'Código de descuento para renovaciones', 'acf-woo-fasciculos' ),
+                    'name' => 'fasciculo_discount_coupon',
+                    'type' => 'text',
+                    'instructions' => __( 'Introduce el código de un cupón de WooCommerce existente. Se aplicará automáticamente a todas las renovaciones excepto la primera compra.', 'acf-woo-fasciculos' ),
+                    'required' => 0,
+                    'conditional_logic' => 0,
+                    'wrapper' => array(
+                        'width' => '',
+                        'class' => '',
+                        'id' => '',
+                    ),
+                    'default_value' => '',
+                    'placeholder' => __( 'Ej: DESC10, RENUEVA20...', 'acf-woo-fasciculos' ),
+                    'prepend' => '🏷️',
+                    'append' => '',
+                    'maxlength' => '',
+                ),
             ),
             'location' => array(
                 array(

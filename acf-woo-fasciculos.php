@@ -3,7 +3,7 @@
  * Plugin Name: Coleccionables Singulari
  * Plugin URI: https://grupo-pro.es/plugins/coleccionables-singulari
  * Description: Sistema de suscripción por fascículos para WooCommerce con planes semanales de productos y precios variables
- * Version: 3.4.1
+ * Version: 3.6.0
  * Author: Héctor & Ledys
  * Author URI: https://grupo-pro.es
  * Text Domain: acf-woo-fasciculos
@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define plugin constants.
 if ( ! defined( 'ACF_WOO_FASCICULOS_VERSION' ) ) {
-	define( 'ACF_WOO_FASCICULOS_VERSION', '3.4.1' );
+	define( 'ACF_WOO_FASCICULOS_VERSION', '3.6.0' );
 }
 
 if ( ! defined( 'ACF_WOO_FASCICULOS_PLUGIN_DIR' ) ) {

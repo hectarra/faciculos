@@ -79,6 +79,7 @@ class ACF_Woo_Fasciculos {
     const META_PLAN_CACHE = '_fasciculos_plan_cache';
     const META_FIRST_UPDATE = '_fasciculo_first_update_done';
     const META_RENEWAL_DAYS = '_fasciculo_custom_renewal_days';
+    const META_DISCOUNT_COUPON = '_fasciculo_discount_coupon';
 
     /**
      * Obtener la única instancia del plugin
@@ -154,6 +155,7 @@ class ACF_Woo_Fasciculos {
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this->orders_handler, 'save_plan_to_order_item' ), 10, 4 );
         add_action( 'woocommerce_checkout_subscription_created', array( $this->orders_handler, 'copy_plan_to_subscription' ), 10, 4 );
         add_action( 'woocommerce_checkout_subscription_created', array( $this->orders_handler, 'apply_custom_renewal_days' ), 15, 3 );
+        add_action( 'woocommerce_checkout_subscription_created', array( $this->orders_handler, 'copy_coupon_to_subscription' ), 20, 3 );
         add_filter( 'wcs_renewal_order_created', array( $this->orders_handler, 'on_renewal_order_created' ), 10, 2 );
         add_action( 'woocommerce_order_status_changed', array( $this->orders_handler, 'on_order_status_progresses_renewal' ), 10, 4 );
 
@@ -191,10 +193,13 @@ class ACF_Woo_Fasciculos {
         add_filter( 'wcs_subscription_can_be_renewed_early', array( $this->subscriptions_handler, 'disable_early_renewal' ), 999, 2 );
 
         // Hooks para creación automática de usuarios en checkout
-        add_action( 'woocommerce_checkout_order_created', array( $this->checkout_handler, 'process_new_user_after_order' ), 5, 3 );
+        add_action( 'woocommerce_checkout_order_created', array( $this->checkout_handler, 'process_new_user_after_order' ), 5, 1 );
         add_filter( 'woocommerce_checkout_fields', array( $this->checkout_handler, 'maybe_require_account_fields' ), 10, 1 );
         add_action( 'woocommerce_before_checkout_billing_form', array( $this->checkout_handler, 'add_auto_account_notice' ), 10 );
         add_filter( 'woocommerce_checkout_registration_required', array( $this->checkout_handler, 'force_account_creation_for_fasciculos' ), 10, 1 );
+
+        // Filtrar tienda: solo productos de suscripción
+        add_action( 'pre_get_posts', array( $this->products_handler, 'filter_shop_subscription_only' ) );
     }
 
     /**

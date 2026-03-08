@@ -5,6 +5,94 @@ Todos los cambios notables en este plugin serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 
+## [3.6.0] - 2026-03-06
+
+### Añadido
+- **Código de descuento automático para renovaciones**
+  - Nuevo campo ACF "Código de descuento para renovaciones" en productos de suscripción
+  - Permite configurar un cupón de WooCommerce que se aplica automáticamente a todas las renovaciones
+  - El primer pedido (compra inicial) NO recibe el descuento
+  - Usa la infraestructura nativa de cupones de WooCommerce
+  - El descuento es visible en cada pedido de renovación como un cupón aplicado
+  - Notas informativas automáticas en suscripciones y pedidos de renovación
+
+### Funciones nuevas
+- `copy_coupon_to_subscription()` - Copia el código de cupón del producto a la suscripción al crearla
+- `apply_discount_coupon_to_renewal()` - Aplica el cupón automáticamente a cada pedido de renovación
+- Nueva constante `META_DISCOUNT_COUPON` para almacenar el cupón en la suscripción
+
+### Hook
+- Nuevo action hook registrado: `woocommerce_checkout_subscription_created` → `copy_coupon_to_subscription` (prioridad 20)
+
+---
+
+## [3.5.0] - 2026-02-26
+
+### Añadido
+- **Filtro de tienda: solo productos de suscripción**
+  - La página de tienda de WooCommerce ahora solo muestra productos de tipo suscripción
+  - Los productos simples quedan ocultos del catálogo público
+  - El filtro también aplica en categorías y etiquetas de producto
+  - El panel de administración no se ve afectado (muestra todos los productos)
+
+### Funciones nuevas
+- `filter_shop_subscription_only()` - Filtra la query principal de la tienda usando `pre_get_posts` y la taxonomía `product_type`
+
+### Hook
+- Nuevo action hook registrado: `pre_get_posts` → `filter_shop_subscription_only`
+
+---
+
+## [Infraestructura] - 2026-02-23
+
+### Añadido
+- **Redis como Object Cache**
+  - Instalado Redis Server y extensión `lsphp83-redis`
+  - Configurado como Object Cache en LiteSpeed Cache (host: `127.0.0.1`, puerto: `6379`)
+  - Reduce drásticamente las consultas a la base de datos en cada petición
+
+- **OPcache + JIT habilitados**
+  - OPcache activado con 256MB de memoria para scripts compilados
+  - Interned strings buffer: 32MB, max archivos: 30.000
+  - JIT (Just-In-Time) en modo `tracing` con 128MB de buffer
+  - Revalidación de archivos cada 60 segundos
+
+- **AIO io_uring habilitado**
+  - Configurado `io_uring` como método de I/O asíncrono en OpenLiteSpeed
+  - Mejora el rendimiento de servir archivos estáticos con menos llamadas al sistema
+
+### Cambiado
+- **WP-Cron migrado al sistema**
+  - Desactivado WP-Cron por HTTP (`DISABLE_WP_CRON = true` en `wp-config.php`)
+  - Configurado cron del sistema (`crontab`) para ejecutar `wp cron event run --due-now` cada 5 minutos
+  - Resuelto problema de ~20 días de crons atrasados que causaban deadlocks LSAPI
+
+- **Configuración de PHP (`php.ini`)**
+  - `memory_limit`: 512M
+  - `max_execution_time`: 300s
+  - `upload_max_filesize` y `post_max_size`: 128M
+  - `realpath_cache_size`: 4096K, `realpath_cache_ttl`: 600
+
+- **Optimización de MariaDB**
+  - `innodb_buffer_pool_size`: 3G (para 15GB RAM)
+  - `innodb_log_file_size`: 512M
+  - `max_connections`: 200
+  - `innodb_flush_log_at_trx_commit`: 2 (mejor rendimiento escritura)
+  - `innodb_flush_method`: O_DIRECT
+
+- **Tuning de OpenLiteSpeed**
+  - LSPHP: 50 max connections, 600s max idle time
+  - Compresión GZIP (nivel 6) y Brotli habilitados
+  - Small File Cache: 40MB, MMAP Cache: 80MB
+  - Kernel: optimización de `sysctl` para conexiones de red
+
+### Corregido
+- **Deadlock LSAPI** (`No request delivery notification from LSAPI application, possible dead lock`)
+  - Causa: crons atrasados ejecutándose en masa + timeouts bajos de LSAPI
+  - Solución: migración a cron del sistema + aumento de timeouts
+
+---
+
 ## [3.4.1] - 2025-12-26
 
 ### Cambiado

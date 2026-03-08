@@ -320,4 +320,33 @@ class ACF_Woo_Fasciculos_Products {
 
         return $debug_info;
     }
+
+    /**
+     * Filtrar la tienda de WooCommerce para mostrar solo productos de suscripción
+     *
+     * Oculta productos simples de la página de tienda y archivos de producto,
+     * mostrando únicamente productos de tipo 'subscription'.
+     *
+     * @param WP_Query $query La query principal de WordPress.
+     * @return void
+     * @since 3.5.0
+     */
+    public function filter_shop_subscription_only( $query ) {
+        // No actuar en admin ni en queries secundarias.
+        if ( is_admin() || ! $query->is_main_query() ) {
+            return;
+        }
+
+        // Solo actuar en la tienda y archivos de producto (categorías, etiquetas, etc.).
+        if ( is_shop() || is_product_taxonomy() ) {
+            $tax_query   = (array) $query->get( 'tax_query' );
+            $tax_query[] = array(
+                'taxonomy' => 'product_type',
+                'field'    => 'slug',
+                'terms'    => array( 'subscription' ),
+                'operator' => 'IN',
+            );
+            $query->set( 'tax_query', $tax_query );
+        }
+    }
 }
