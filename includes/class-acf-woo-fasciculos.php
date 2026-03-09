@@ -72,6 +72,13 @@ class ACF_Woo_Fasciculos {
     private $csv_importer;
 
     /**
+     * Instancia del manejador de cancelaciones
+     *
+     * @var ACF_Woo_Fasciculos_Cancellations
+     */
+    private $cancellations_handler;
+
+    /**
      * Instancia del manejador del checkout
      *
      * @var ACF_Woo_Fasciculos_Checkout
@@ -123,6 +130,7 @@ class ACF_Woo_Fasciculos {
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/admin/class-acf-woo-fasciculos-admin.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/admin/class-acf-woo-fasciculos-csv-importer.php';
         require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-checkout.php';
+        require_once ACF_WOO_FASCICULOS_PLUGIN_DIR . 'includes/core/class-acf-woo-fasciculos-cancellations.php';
     }
 
     /**
@@ -140,6 +148,7 @@ class ACF_Woo_Fasciculos {
         $this->admin_handler = new ACF_Woo_Fasciculos_Admin( $this->subscriptions_handler );
         $this->checkout_handler = new ACF_Woo_Fasciculos_Checkout();
         $this->csv_importer = new ACF_Woo_Fasciculos_CSV_Importer();
+        $this->cancellations_handler = new ACF_Woo_Fasciculos_Cancellations();
     }
 
     /**
@@ -221,6 +230,20 @@ class ACF_Woo_Fasciculos {
 
         // Forzar suscripciones independientes por cada producto (no agrupar)
         add_filter( 'woocommerce_subscriptions_recurring_cart_key', array( $this->cart_handler, 'force_separate_subscriptions' ), 10, 2 );
+
+        // Endpoints de cancelación
+        add_action( 'init', array( $this->cancellations_handler, 'add_endpoints' ) );
+        add_filter( 'query_vars', array( $this->cancellations_handler, 'add_query_vars' ), 0 );
+        add_filter( 'woocommerce_endpoint_cancelar-fasciculo_title', array( $this->cancellations_handler, 'endpoint_title' ), 10, 2 );
+        add_filter( 'wcs_view_subscription_actions', array( $this->cancellations_handler, 'intercept_cancel_button' ), 100, 2 );
+        add_action( 'woocommerce_account_cancelar-fasciculo_endpoint', array( $this->cancellations_handler, 'endpoint_content' ) );
+        add_action( 'template_redirect', array( $this->cancellations_handler, 'process_cancellation_forms' ) );
+
+        // Hook para acumular descuentos aplicados a las suscripciones con ofertas de retención activas
+        add_action( 'woocommerce_order_status_completed', array( $this->cancellations_handler, 'accumulate_retention_discount' ), 10, 1 );
+
+        // Hook para verificar y eliminar descuentos expirados al completarse renovaciones
+        add_action( 'woocommerce_order_status_completed', array( $this->cancellations_handler, 'check_and_expire_retention_discount' ), 15, 1 );
     }
 
     /**
@@ -284,5 +307,14 @@ class ACF_Woo_Fasciculos {
      */
     public function get_checkout_handler() {
         return $this->checkout_handler;
+    }
+
+    /**
+     * Obtener el manejador de cancelaciones
+     *
+     * @return ACF_Woo_Fasciculos_Cancellations
+     */
+    public function get_cancellations_handler() {
+        return $this->cancellations_handler;
     }
 }

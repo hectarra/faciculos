@@ -29,6 +29,9 @@ class ACF_Woo_Fasciculos_Admin {
      */
     public function __construct( $subscriptions_handler = null ) {
         $this->subscriptions_handler = $subscriptions_handler;
+
+        // Hooks
+        add_action( 'add_meta_boxes', array( $this, 'add_cancellation_reason_meta_box' ) );
     }
 
     /**
@@ -130,8 +133,48 @@ public function show_active_week( $_product, $item, $item_id ) {
         $hidden_meta[] = ACF_Woo_Fasciculos::META_PLAN_CACHE;
         $hidden_meta[] = ACF_Woo_Fasciculos::META_ACTIVE_INDEX;
         $hidden_meta[] = ACF_Woo_Fasciculos::META_FIRST_UPDATE;
+        $hidden_meta[] = '_fasciculo_included';
+        $hidden_meta[] = '_product_item';
+        $hidden_meta[] = '_fasciculos_cancellation_reason';
+        $hidden_meta[] = '_fasciculos_active_retention_offer';
 
         return $hidden_meta;
+    }
+
+    /**
+     * Añade un metabox para mostrar el motivo de cancelación de los fascículos
+     */
+    public function add_cancellation_reason_meta_box() {
+        add_meta_box(
+            'fasciculos_cancellation_reason',
+            __( 'Motivo de Cancelación', 'acf-woo-fasciculos' ),
+            array( $this, 'render_cancellation_reason_meta_box' ),
+            'shop_subscription',
+            'side',
+            'high'
+        );
+    }
+
+    /**
+     * Renderiza el contenido del metabox de motivo de cancelación
+     *
+     * @param WP_Post $post
+     */
+    public function render_cancellation_reason_meta_box( $post ) {
+        $subscription = wcs_get_subscription( $post->ID );
+
+        if ( ! $subscription ) {
+            return;
+        }
+
+        $reason = $subscription->get_meta( '_fasciculos_cancellation_reason' );
+
+        if ( ! empty( $reason ) ) {
+            echo '<p><strong>' . esc_html__( 'Motivo proporcionado por el usuario:', 'acf-woo-fasciculos' ) . '</strong></p>';
+            echo '<p><em>' . esc_html( $reason ) . '</em></p>';
+        } else {
+            echo '<p>' . esc_html__( 'No hay motivo de cancelación registrado.', 'acf-woo-fasciculos' ) . '</p>';
+        }
     }
 
     
