@@ -29,10 +29,11 @@ class ACF_Woo_Fasciculos_Cancellations {
         add_rewrite_endpoint( 'cancelar-fasciculo', EP_ROOT | EP_PAGES );
 
         // Comprobar si hay que hacer flush de las reglas
-        if ( ! get_option( 'acf_woo_fasciculos_flush_rewrite_rules' ) ) {
+        // Actualizamos la opción a v2 para forzar un flush en entornos donde ya existía la versión anterior
+        if ( ! get_option( 'acf_woo_fasciculos_flush_rewrite_rules_v2' ) ) {
             add_action( 'wp_loaded', function() {
                 flush_rewrite_rules();
-                update_option( 'acf_woo_fasciculos_flush_rewrite_rules', true );
+                update_option( 'acf_woo_fasciculos_flush_rewrite_rules_v2', true );
             } );
         }
     }
