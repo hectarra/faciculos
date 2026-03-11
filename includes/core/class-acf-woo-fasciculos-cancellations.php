@@ -82,15 +82,54 @@ class ACF_Woo_Fasciculos_Cancellations {
             return $actions;
         }
 
-        // Si existe el botón de cancelar, modificar su URL
-        if ( isset( $actions['cancel'] ) ) {
-            $cancel_url = wc_get_endpoint_url( 'cancelar-fasciculo', $subscription->get_id(), wc_get_page_permalink( 'myaccount' ) );
-            $actions['cancel']['url'] = $cancel_url;
-            // Opcionalmente podemos añadir una clase CSS para evitar JS de WCS si lo hubiera
-            $actions['cancel']['class'] .= ' fasciculos-cancel-btn';
+        // Comprobar si hay una oferta activa y si el usuario aún está dentro de la permanencia
+        $active_offer = $subscription->get_meta( '_fasciculos_active_retention_offer' );
+        $active_index = intval( $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX ) );
+
+        if ( $active_offer && $active_index < intval( $active_offer['target_delivery'] ) ) {
+            // El usuario tiene una permanencia activa
+            // Quitar el botón de cancelar original
+            if ( isset( $actions['cancel'] ) ) {
+                unset( $actions['cancel'] );
+            }
+
+            // Añadir botón de contacto
+            $actions['contact'] = array(
+                'url'  => 'https://singularicolecciones.com/contacto/',
+                'name' => __( 'Contacto *', 'acf-woo-fasciculos' ),
+                'class'=> 'button contact',
+            );
+
+        } else {
+            // No tiene oferta activa o ya ha cumplido la permanencia. Modificar la URL del botón de cancelar.
+            if ( isset( $actions['cancel'] ) ) {
+                $cancel_url = wc_get_endpoint_url( 'cancelar-fasciculo', $subscription->get_id(), wc_get_page_permalink( 'myaccount' ) );
+                $actions['cancel']['url'] = $cancel_url;
+                $actions['cancel']['class'] .= ' fasciculos-cancel-btn';
+            }
         }
 
         return $actions;
+    }
+
+    /**
+     * Muestra el texto legal de permanencia debajo de la tabla de la suscripción
+     *
+     * @param WC_Subscription $subscription
+     */
+    public function show_permanence_legal_text( $subscription ) {
+        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
+            return;
+        }
+
+        $active_offer = $subscription->get_meta( '_fasciculos_active_retention_offer' );
+        $active_index = intval( $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX ) );
+
+        if ( $active_offer && $active_index < intval( $active_offer['target_delivery'] ) ) {
+            echo '<p style="font-size: 0.9em; color: #666; margin-top: 20px;">';
+            echo esc_html__( '*Permanencia Obligatioria de entregas para obtener el descuento. Si se cancela antes de la entrega acordada por la permanencia se cobrarán las entregas ya realizadas al PVP establecido sin descuento.', 'acf-woo-fasciculos' );
+            echo '</p>';
+        }
     }
 
     /**
@@ -153,27 +192,22 @@ class ACF_Woo_Fasciculos_Cancellations {
     private function get_retention_offer( $subscription ) {
         $active_index = intval( $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX ) );
 
-        // "despues de la primera renovacion" significa índice > 0 (es decir, ya ha cobrado la primera y está en la semana 2 o más)
-        // Pero el user dice "despues de la primera renovacion (entrega 2)".
-        // Entendamos:
-        // 0 -> checkout (entrega 1)
-        // 1 -> 1ra renovación (entrega 2)
-        // 2 -> 2da renovación (entrega 3)
-        // 3 -> 3ra renovación (entrega 4)
+        // "despues del primer pedido" (el checkout fue 0, el primer pedido de renovacion lo pone en 1) -> 20% hasta el envio 13
+        // "despues del segundo pedido" (el checkout fue 0, el primer pedido de renovacion 1, el segundo pedido 2) -> 10% hasta envio 5
 
-        if ( $active_index >= 3 ) { // Después de la tercera renovación (índice 3 o más)
-            return array(
-                'type' => 'after_3rd',
-                'discount' => 5, // 5%
-                'duration' => 10, // proximas 10 entregas
-                'message' => __( 'Piénsalo, te ofrecemos un 5% de descuento en tus próximas 10 entregas* para ayudarte a que finalices tu colección', 'acf-woo-fasciculos' )
-            );
-        } elseif ( $active_index >= 1 ) { // Después de la primera renovación (índice 1 o 2)
+        if ( $active_index === 1 ) {
             return array(
                 'type' => 'after_1st',
-                'discount' => 15, // 15%
-                'target_delivery' => 30, // hasta la entrega 30 incluida
-                'message' => __( 'Piénsalo, te ofrecemos un 15% de descuento hasta la entrega 30* (incluida) para ayudarte a que finalices tu colección', 'acf-woo-fasciculos' )
+                'discount' => 20, // 20%
+                'target_delivery' => 13, // hasta la entrega 13 incluida (indice 12)
+                'message' => __( 'Piénsalo, te ofrecemos un 20% de descuento hasta la entrega 13* (incluida) para ayudarte a que finalices tu colección', 'acf-woo-fasciculos' )
+            );
+        } elseif ( $active_index === 2 ) {
+            return array(
+                'type' => 'after_2nd',
+                'discount' => 10, // 10%
+                'target_delivery' => 5, // hasta la entrega 5 incluida (indice 4)
+                'message' => __( 'Piénsalo, te ofrecemos un 10% de descuento hasta la entrega 5* (incluida) para ayudarte a que finalices tu colección', 'acf-woo-fasciculos' )
             );
         }
 
@@ -193,7 +227,7 @@ class ACF_Woo_Fasciculos_Cancellations {
             // Mostrar la oferta de retención
             echo '<p><strong>' . esc_html( $offer['message'] ) . '</strong></p>';
             if ( $active_offer ) {
-                echo '<p>' . esc_html__( 'Al aceptar esta nueva oferta, este descuento se sumará al que ya tienes por permanencia.', 'acf-woo-fasciculos' ) . '</p>';
+                echo '<p>' . esc_html__( 'Al aceptar esta nueva oferta, el descuento actual que tienes se sustituirá por este nuevo descuento.', 'acf-woo-fasciculos' ) . '</p>';
             }
             echo '<p><small>' . esc_html__( '*Permanencia Obligatoria de entregas para obtener el descuento. Si se cancela antes de la entrega acordada por la permanencia se cobrarán las entregas ya realizadas al PVP establecido sin descuento.', 'acf-woo-fasciculos' ) . '</small></p>';
 
@@ -305,36 +339,23 @@ class ACF_Woo_Fasciculos_Cancellations {
         $discount_amount = 0;
         $target_delivery = 0;
 
-        if ( $offer_type === 'after_3rd' ) {
-            $discount_amount = 5; // 5%
-            // Si está en la semana 4 (índice 3), las próximas 10 entregas deben cubrir hasta la 14 (índice 13).
-            // La expiración comprueba `$active_index >= $target_delivery`. Así que si es 14, en el índice 14 expirará.
-            // Por lo tanto, el target index es índice actual (ej 3) + 11 = 14.
-            $target_delivery = $active_index + 11;
-        } elseif ( $offer_type === 'after_1st' ) {
-            $discount_amount = 15; // 15%
-            $target_delivery = 30; // Hasta entrega 30. Cuando active_index llegue a 30 (lo que sería la semana 31), se expira.
+        if ( $offer_type === 'after_1st' ) {
+            $discount_amount = 20; // 20%
+            $target_delivery = 13; // Hasta entrega 13 inclusive
+        } elseif ( $offer_type === 'after_2nd' ) {
+            $discount_amount = 10; // 10%
+            $target_delivery = 5; // Hasta entrega 5 inclusive
         }
 
         if ( $discount_amount > 0 ) {
-            $active_offer = $subscription->get_meta( '_fasciculos_active_retention_offer' );
-            $final_discount = $discount_amount;
-            $final_target = $target_delivery;
-            $total_discounted_so_far = 0;
 
-            if ( $active_offer ) {
-                // Sumar al descuento existente
-                $final_discount += floatval( $active_offer['discount'] );
-                // Usar la permanencia más larga
-                $final_target = max( $target_delivery, intval( $active_offer['target_delivery'] ) );
-                $total_discounted_so_far = floatval( $active_offer['total_discounted'] );
+            // Si el cliente tenía un cupón anteriormente, se sustituye y no se acumula
+            $old_coupon_code = $subscription->get_meta( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
+            if ( $old_coupon_code ) {
+                $subscription->remove_coupon( $old_coupon_code );
 
-                // Borrar cupón anterior
-                $old_coupon_code = $subscription->get_meta( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
-                if ( $old_coupon_code ) {
-                    // Remover de la suscripción
-                    $subscription->remove_coupon( $old_coupon_code );
-
+                // Solo borrar físicamente si es un cupón generado por nosotros para esta función
+                if ( strpos( $old_coupon_code, 'retencion-' ) === 0 ) {
                     $old_coupon = new WC_Coupon( $old_coupon_code );
                     if ( $old_coupon->get_id() ) {
                         $old_coupon->delete( true );
@@ -345,19 +366,19 @@ class ACF_Woo_Fasciculos_Cancellations {
             // Guardar oferta activa
             $offer_data = array(
                 'type' => $offer_type,
-                'discount' => $final_discount,
+                'discount' => $discount_amount,
                 'start_index' => $active_index,
-                'target_delivery' => $final_target,
-                'total_discounted' => $total_discounted_so_far // Mantenemos el acumulado anterior
+                'target_delivery' => $target_delivery,
+                'total_discounted' => 0 // Ya no lo usamos para pedido automatico, pero lo podemos guardar para logs de soporte
             );
             $subscription->update_meta_data( '_fasciculos_active_retention_offer', $offer_data );
 
-            // Crear nuevo cupón acumulado
+            // Crear nuevo cupón
             $coupon_code = 'retencion-' . $subscription->get_id() . '-' . wp_generate_password( 6, false );
             $coupon = new WC_Coupon();
             $coupon->set_code( $coupon_code );
             $coupon->set_discount_type( 'percent' );
-            $coupon->set_amount( $final_discount );
+            $coupon->set_amount( $discount_amount );
             // IMPORTANTE: No limitamos el uso a 1 porque debe usarse en cada renovación durante la permanencia
             $coupon->save();
 
@@ -367,11 +388,11 @@ class ACF_Woo_Fasciculos_Cancellations {
             // Aplicar el cupón a la suscripción
             $subscription->apply_coupon( $coupon_code );
 
-            $subscription->add_order_note( sprintf( __( '✅ Oferta de retención aceptada. Descuento total ahora es %d%%. Permanencia hasta entrega %d.', 'acf-woo-fasciculos' ), $final_discount, $final_target ) );
+            $subscription->add_order_note( sprintf( __( '✅ Oferta de retención aceptada: %d%% de descuento. Permanencia hasta entrega %d.', 'acf-woo-fasciculos' ), $discount_amount, $target_delivery ) );
             $subscription->calculate_totals();
             $subscription->save();
 
-            wc_add_notice( __( '¡Gracias por quedarte! Tu descuento se ha sumado a tu suscripción para las próximas entregas.', 'acf-woo-fasciculos' ), 'success' );
+            wc_add_notice( __( '¡Gracias por quedarte! Tu descuento se ha aplicado a tu suscripción para las próximas entregas.', 'acf-woo-fasciculos' ), 'success' );
 
             // Redirigir de vuelta a la suscripción
             wp_redirect( $subscription->get_view_order_url() );
@@ -396,11 +417,16 @@ class ACF_Woo_Fasciculos_Cancellations {
         $subscription->update_meta_data( '_fasciculos_cancellation_reason', $reason );
         $subscription->add_order_note( sprintf( __( 'Motivo de cancelación proporcionado: %s', 'acf-woo-fasciculos' ), $reason ) );
 
-        // Comprobar penalización por romper permanencia
-        $this->check_and_apply_penalty( $subscription );
-
         // Cancelar suscripción
         $subscription->update_status( 'cancelled', __( 'Suscripción cancelada por el usuario desde su cuenta.', 'acf-woo-fasciculos' ) );
+
+        // Si tenía cupón de permanencia, limpiarlo
+        $coupon_code = $subscription->get_meta( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
+        if ( $coupon_code ) {
+            $subscription->remove_coupon( $coupon_code );
+            $subscription->delete_meta_data( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
+        }
+
         $subscription->save();
 
         // Redirigir a la página de agradecimiento
@@ -409,109 +435,6 @@ class ACF_Woo_Fasciculos_Cancellations {
 
         wp_redirect( $success_url );
         exit;
-    }
-
-    /**
-     * Comprueba si el usuario rompe la permanencia y aplica penalización si es así
-     *
-     * @param WC_Subscription $subscription
-     */
-    private function check_and_apply_penalty( $subscription ) {
-        $active_offer = $subscription->get_meta( '_fasciculos_active_retention_offer' );
-
-        if ( ! $active_offer ) {
-            return; // No hay oferta activa, no hay permanencia que romper
-        }
-
-        $active_index = intval( $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX ) );
-        $target_delivery = intval( $active_offer['target_delivery'] );
-        $total_discounted = floatval( $active_offer['total_discounted'] );
-
-        // Si el índice actual (que es la entrega que va a recibir o acaba de recibir) es MENOR que la entrega objetivo, rompe permanencia.
-        // Recordar que active_index = 0 es entrega 1. Así que entrega 30 es active_index 29.
-        if ( $active_index < $target_delivery && $total_discounted > 0 ) {
-
-            // Crear un pedido de penalización
-            $penalty_order = wc_create_order( array(
-                'customer_id' => $subscription->get_customer_id(),
-                'status' => 'pending'
-            ) );
-
-            if ( is_wp_error( $penalty_order ) ) {
-                $subscription->add_order_note( __( 'Error al intentar crear pedido de penalización.', 'acf-woo-fasciculos' ) );
-                return;
-            }
-
-            // Crear ítem virtual "Penalización por cancelación anticipada"
-            $item = new WC_Order_Item_Fee();
-            $item->set_name( __( 'Penalización por cancelación anticipada (Rotura de permanencia)', 'acf-woo-fasciculos' ) );
-            $item->set_amount( $total_discounted );
-            $item->set_total( $total_discounted );
-            $penalty_order->add_item( $item );
-
-            // Añadir información de facturación (copiada de la suscripción)
-            $penalty_order->set_billing_first_name( $subscription->get_billing_first_name() );
-            $penalty_order->set_billing_last_name( $subscription->get_billing_last_name() );
-            $penalty_order->set_billing_email( $subscription->get_billing_email() );
-            $penalty_order->set_billing_phone( $subscription->get_billing_phone() );
-            // ... resto de campos si fuera necesario, o simplemente usar customer_id.
-
-            $penalty_order->calculate_totals();
-            $penalty_order->add_order_note( sprintf( __( 'Pedido generado automáticamente por rotura de permanencia en suscripción #%d.', 'acf-woo-fasciculos' ), $subscription->get_id() ) );
-            $penalty_order->save();
-
-            // Enlazar pedido a la suscripción
-            $subscription->add_order_note( sprintf( __( '❌ Permanencia rota. Se ha generado un cargo pendiente de %s en el pedido #%d correspondiente a los descuentos disfrutados.', 'acf-woo-fasciculos' ), wc_price( $total_discounted ), $penalty_order->get_id() ) );
-        }
-
-        // Eliminar el cupón activo
-        $coupon_code = $subscription->get_meta( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
-        if ( $coupon_code ) {
-            $subscription->remove_coupon( $coupon_code );
-            // Eliminar el cupón para que no siga aplicándose, o no se use más.
-            $subscription->delete_meta_data( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
-        }
-
-        // Limpiar oferta activa para dejarlo registrado que ya no está activa, pero no borrar historial total
-        // O simplemente dejarlo, ya que la suscripción se cancela.
-    }
-
-    /**
-     * Acumula el descuento aplicado a la suscripción para el cálculo de penalización
-     * Este método se llama cuando un pedido se completa
-     *
-     * @param int $order_id
-     */
-    public function accumulate_retention_discount( $order_id ) {
-        $order = wc_get_order( $order_id );
-
-        if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $order ) || ! ACF_Woo_Fasciculos_Utils::is_renewal_order( $order ) ) {
-            return;
-        }
-
-        $subscriptions = ACF_Woo_Fasciculos_Utils::get_renewal_subscriptions( $order_id );
-
-        foreach ( $subscriptions as $subscription ) {
-            if ( ! ACF_Woo_Fasciculos_Utils::is_valid_subscription( $subscription ) ) {
-                continue;
-            }
-
-            // Comprobar si hay una oferta activa
-            $active_offer = $subscription->get_meta( '_fasciculos_active_retention_offer' );
-            if ( ! $active_offer ) {
-                continue;
-            }
-
-            // Verificar si el descuento total en el pedido es mayor que 0
-            $discount_total = $order->get_discount_total();
-
-            if ( $discount_total > 0 ) {
-                // Acumulamos el descuento
-                $active_offer['total_discounted'] = (isset($active_offer['total_discounted']) ? floatval($active_offer['total_discounted']) : 0) + floatval($discount_total);
-                $subscription->update_meta_data( '_fasciculos_active_retention_offer', $active_offer );
-                $subscription->save();
-            }
-        }
     }
 
     /**
@@ -553,10 +476,12 @@ class ACF_Woo_Fasciculos_Cancellations {
                     $subscription->remove_coupon( $coupon_code );
                     $subscription->delete_meta_data( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
 
-                    // Borrar el cupón físico
-                    $coupon = new WC_Coupon( $coupon_code );
-                    if ( $coupon->get_id() ) {
-                        $coupon->delete( true );
+                    // Solo borrar físicamente si es un cupón generado por nosotros para esta función
+                    if ( strpos( $coupon_code, 'retencion-' ) === 0 ) {
+                        $coupon = new WC_Coupon( $coupon_code );
+                        if ( $coupon->get_id() ) {
+                            $coupon->delete( true );
+                        }
                     }
                 }
 

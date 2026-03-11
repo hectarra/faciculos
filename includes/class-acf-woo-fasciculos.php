@@ -239,11 +239,11 @@ class ACF_Woo_Fasciculos {
         add_action( 'woocommerce_account_cancelar-fasciculo_endpoint', array( $this->cancellations_handler, 'endpoint_content' ) );
         add_action( 'template_redirect', array( $this->cancellations_handler, 'process_cancellation_forms' ) );
 
-        // Hook para acumular descuentos aplicados a las suscripciones con ofertas de retención activas
-        add_action( 'woocommerce_order_status_completed', array( $this->cancellations_handler, 'accumulate_retention_discount' ), 10, 1 );
-
         // Hook para verificar y eliminar descuentos expirados al completarse renovaciones
         add_action( 'woocommerce_order_status_completed', array( $this->cancellations_handler, 'check_and_expire_retention_discount' ), 15, 1 );
+
+        // Texto legal bajo los botones de acción si tiene permanencia
+        add_action( 'woocommerce_subscription_details_after_subscription_table', array( $this->cancellations_handler, 'show_permanence_legal_text' ), 10, 1 );
     }
 
     /**
