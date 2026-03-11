@@ -125,10 +125,13 @@ class ACF_Woo_Fasciculos_Cancellations {
         $active_offer = $subscription->get_meta( '_fasciculos_active_retention_offer' );
         $active_index = intval( $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX ) );
 
+        // Si tiene la permanencia activa, inyectar el texto justo después de la tabla
         if ( $active_offer && $active_index < intval( $active_offer['target_delivery'] ) ) {
-            echo '<p style="font-size: 0.9em; color: #666; margin-top: 20px;">';
+            echo '<div style="width: 100%; text-align: right; margin-top: 15px;">';
+            echo '<p style="display: inline-block; max-width: 400px; text-align: left; font-size: 0.85em; color: #666; line-height: 1.4;">';
             echo esc_html__( '*Permanencia Obligatioria de entregas para obtener el descuento. Si se cancela antes de la entrega acordada por la permanencia se cobrarán las entregas ya realizadas al PVP establecido sin descuento.', 'acf-woo-fasciculos' );
             echo '</p>';
+            echo '</div>';
         }
     }
 
@@ -161,6 +164,18 @@ class ACF_Woo_Fasciculos_Cancellations {
         if ( $active_offer && $offer && $active_offer['type'] === $offer['type'] ) {
             // Ya tiene esta misma oferta activa. No le ofrecemos de nuevo.
             $offer = false;
+        }
+
+        // Si estamos en el paso 1, pero no hay oferta (porque no cumple requisitos de antigüedad, o porque ya tuvo esta oferta y no hay otra, o porque la oferta ya venció)
+        // Y tampoco tiene una oferta activa rompiendo permanencia (o si la tenía, ya venció el target_delivery)
+        // -> Saltamos directamente al paso 2 (motivo de cancelación)
+        if ( $step === '1' ) {
+            $active_index = intval( $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX ) );
+            $has_unmet_permanence = ( $active_offer && $active_index < intval( $active_offer['target_delivery'] ) );
+
+            if ( ! $offer && ! $has_unmet_permanence ) {
+                $step = '2';
+            }
         }
 
         echo '<div class="acf-woo-fasciculos-cancellation-flow">';
@@ -246,7 +261,7 @@ class ACF_Woo_Fasciculos_Cancellations {
             echo '</div>';
 
         } elseif ( $active_offer ) {
-            // Ya tiene una oferta activa, advertir sobre la penalización si rompe la permanencia
+            // Ya tiene una oferta activa y está dentro del periodo de permanencia
             echo '<p>' . esc_html__( 'Actualmente disfrutas de un descuento por permanencia en tu suscripción. Si cancelas ahora, se cobrarán las entregas ya realizadas al PVP establecido sin descuento.', 'acf-woo-fasciculos' ) . '</p>';
 
             echo '<div class="cancellation-actions" style="margin-top:20px; display:flex; gap:10px;">';
@@ -255,13 +270,6 @@ class ACF_Woo_Fasciculos_Cancellations {
             echo '<a href="' . esc_url( $next_url ) . '" class="button">' . esc_html__( 'Sí, quiero cancelar asumiendo la penalización', 'acf-woo-fasciculos' ) . '</a>';
             echo '</div>';
 
-        } else {
-            // No hay oferta (probablemente es la primera entrega o checkout apenas hecho)
-            echo '<div class="cancellation-actions" style="margin-top:20px; display:flex; gap:10px;">';
-            echo '<a href="' . esc_url( $subscription->get_view_order_url() ) . '" class="button alt">' . esc_html__( 'No quiero cancelar', 'acf-woo-fasciculos' ) . '</a>';
-            $next_url = add_query_arg( 'step', '2', $base_url );
-            echo '<a href="' . esc_url( $next_url ) . '" class="button">' . esc_html__( 'Continuar con la cancelación', 'acf-woo-fasciculos' ) . '</a>';
-            echo '</div>';
         }
     }
 
@@ -333,19 +341,20 @@ class ACF_Woo_Fasciculos_Cancellations {
             return;
         }
 
-        $offer_type = isset( $_POST['offer_type'] ) ? sanitize_text_field( $_POST['offer_type'] ) : '';
         $active_index = intval( $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX ) );
+        $posted_offer_type = isset( $_POST['offer_type'] ) ? sanitize_text_field( $_POST['offer_type'] ) : '';
 
-        $discount_amount = 0;
-        $target_delivery = 0;
+        // Recalcular cuál es la oferta legítima a la que tiene derecho ahora mismo
+        $valid_offer = $this->get_retention_offer( $subscription );
 
-        if ( $offer_type === 'after_1st' ) {
-            $discount_amount = 20; // 20%
-            $target_delivery = 13; // Hasta entrega 13 inclusive
-        } elseif ( $offer_type === 'after_2nd' ) {
-            $discount_amount = 10; // 10%
-            $target_delivery = 5; // Hasta entrega 5 inclusive
+        if ( ! $valid_offer || $valid_offer['type'] !== $posted_offer_type ) {
+            wc_add_notice( __( 'La oferta seleccionada ya no es válida o no está disponible.', 'acf-woo-fasciculos' ), 'error' );
+            return;
         }
+
+        $offer_type = $valid_offer['type'];
+        $discount_amount = intval( $valid_offer['discount'] );
+        $target_delivery = intval( $valid_offer['target_delivery'] );
 
         if ( $discount_amount > 0 ) {
 
