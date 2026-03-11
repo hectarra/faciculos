@@ -57,10 +57,6 @@ class ACF_Woo_Fasciculos_Cart {
         $cart_item_data[ ACF_Woo_Fasciculos::META_PLAN_CACHE ] = $plan;
         $cart_item_data[ ACF_Woo_Fasciculos::META_ACTIVE_INDEX ] = 0;
 
-        // Generar un ID único para forzar que WooCommerce trate cada adición al carrito como un item separado
-        // Esto es esencial para que cada unidad se convierta en una suscripción independiente.
-        $cart_item_data['_fasciculo_unique_id'] = md5( uniqid( rand(), true ) );
-
         return $cart_item_data;
     }
 
@@ -988,8 +984,46 @@ class ACF_Woo_Fasciculos_Cart {
      * @since 3.7.0
      */
     public function enforce_single_subscription_cart( $passed, $product_id, $quantity ) {
-        // Permitimos agregar múltiples veces la misma suscripción,
-        // por lo que este método ahora simplemente retorna el valor original.
+        // Si ya falló la validación, no hacer nada.
+        if ( ! $passed ) {
+            return false;
+        }
+
+        // Obtener el producto que se intenta agregar.
+        $product = wc_get_product( $product_id );
+        if ( ! $product ) {
+            return $passed;
+        }
+
+        // Solo actuar si el producto nuevo es una suscripción con plan de fascículos.
+        if ( ! ACF_Woo_Fasciculos_Utils::is_subscription_product( $product ) ) {
+            return $passed;
+        }
+
+        $plan = ACF_Woo_Fasciculos_Utils::get_plan_for_product( $product_id );
+        if ( empty( $plan ) ) {
+            return $passed;
+        }
+
+        // Verificar si este MISMO producto ya está en el carrito.
+        $cart = WC()->cart;
+        if ( ! $cart || $cart->is_empty() ) {
+            return $passed;
+        }
+
+        foreach ( $cart->get_cart() as $cart_item ) {
+            $cart_product_id = $cart_item['product_id'];
+
+            // Si el mismo producto ya está en el carrito, impedir agregarlo de nuevo.
+            if ( (int) $cart_product_id === (int) $product_id ) {
+                wc_add_notice(
+                    __( 'Ya tienes esta suscripción en el carrito. Solo puedes tener una unidad de cada suscripción de fascículos.', 'acf-woo-fasciculos' ),
+                    'error'
+                );
+                return false;
+            }
+        }
+
         return $passed;
     }
 
@@ -1013,13 +1047,6 @@ class ACF_Woo_Fasciculos_Cart {
             // Solo separar suscripciones que tienen plan de fascículos.
             if ( ! empty( $plan ) ) {
                 $cart_key .= '_product_' . $product_id;
-
-                // Si existe un identificador único en el item del carrito (agregado en attach_plan_to_cart_item),
-                // lo usamos para forzar que cada unidad de la suscripción tenga su propia clave recurrente.
-                // Esto asegura que WooCommerce Subscriptions cree suscripciones independientes.
-                if ( isset( $cart_item['_fasciculo_unique_id'] ) ) {
-                    $cart_key .= '_id_' . $cart_item['_fasciculo_unique_id'];
-                }
             }
         }
 
