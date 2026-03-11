@@ -127,11 +127,30 @@ class ACF_Woo_Fasciculos_Cancellations {
 
         // Si tiene la permanencia activa, inyectar el texto justo después de la tabla
         if ( $active_offer && $active_index < intval( $active_offer['target_delivery'] ) ) {
-            echo '<div style="width: 100%; text-align: right; margin-top: 15px;">';
-            echo '<p style="display: inline-block; max-width: 400px; text-align: left; font-size: 0.85em; color: #666; line-height: 1.4;">';
-            echo esc_html__( '*Permanencia Obligatioria de entregas para obtener el descuento. Si se cancela antes de la entrega acordada por la permanencia se cobrarán las entregas ya realizadas al PVP establecido sin descuento.', 'acf-woo-fasciculos' );
-            echo '</p>';
-            echo '</div>';
+            $text = esc_html__( '*Permanencia Obligatioria de entregas para obtener el descuento. Si se cancela antes de la entrega acordada por la permanencia se cobrarán las entregas ya realizadas al PVP establecido sin descuento.', 'acf-woo-fasciculos' );
+
+            // Usamos JavaScript para colocarlo exactamente debajo del contenedor de .subscription_actions (o .order-actions)
+            // donde WooCommerce imprime los botones, para asegurar que visualmente quede "justo debajo del botón".
+            ?>
+            <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                var actionTables = document.querySelectorAll('table.shop_table.subscription_details');
+                var actionButtons = document.querySelectorAll('.subscription_actions, .order-actions');
+
+                var legalText = document.createElement('div');
+                legalText.style.cssText = 'width: 100%; text-align: right; margin-top: 5px; clear: both;';
+                legalText.innerHTML = '<p style="display: inline-block; max-width: 400px; text-align: left; font-size: 0.85em; color: #666; line-height: 1.4;"><?php echo $text; ?></p>';
+
+                if (actionButtons.length > 0) {
+                    var lastActionContainer = actionButtons[actionButtons.length - 1];
+                    lastActionContainer.parentNode.insertBefore(legalText, lastActionContainer.nextSibling);
+                } else if (actionTables.length > 0) {
+                    var lastTable = actionTables[actionTables.length - 1];
+                    lastTable.parentNode.insertBefore(legalText, lastTable.nextSibling);
+                }
+            });
+            </script>
+            <?php
         }
     }
 
@@ -448,11 +467,22 @@ class ACF_Woo_Fasciculos_Cancellations {
 
     /**
      * Comprueba si la suscripción ha alcanzado la entrega objetivo y elimina el descuento por retención
+     * Este método se engancha a `woocommerce_order_status_changed` con prioridad alta para que
+     * se ejecute DESPUÉS de que ACF_Woo_Fasciculos_Orders haya avanzado el `active_index` de la suscripción.
      *
-     * @param int $order_id
+     * @param int $order_id ID del pedido.
+     * @param string $old_status Estado anterior.
+     * @param string $new_status Nuevo estado.
+     * @param WC_Order $order Objeto del pedido.
      */
-    public function check_and_expire_retention_discount( $order_id ) {
-        $order = wc_get_order( $order_id );
+    public function check_and_expire_retention_discount( $order_id, $old_status, $new_status, $order ) {
+        if ( ! in_array( $new_status, array( 'processing', 'completed' ), true ) ) {
+            return;
+        }
+
+        if ( ! $order instanceof WC_Order ) {
+            $order = wc_get_order( $order_id );
+        }
 
         if ( ! ACF_Woo_Fasciculos_Utils::is_valid_order( $order ) || ! ACF_Woo_Fasciculos_Utils::is_renewal_order( $order ) ) {
             return;

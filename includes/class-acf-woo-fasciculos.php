@@ -240,7 +240,7 @@ class ACF_Woo_Fasciculos {
         add_action( 'template_redirect', array( $this->cancellations_handler, 'process_cancellation_forms' ) );
 
         // Hook para verificar y eliminar descuentos expirados al completarse renovaciones
-        add_action( 'woocommerce_order_status_completed', array( $this->cancellations_handler, 'check_and_expire_retention_discount' ), 15, 1 );
+        add_action( 'woocommerce_order_status_changed', array( $this->cancellations_handler, 'check_and_expire_retention_discount' ), 20, 4 );
 
         // Texto legal bajo los botones de acción si tiene permanencia
         add_action( 'woocommerce_subscription_details_after_subscription_table', array( $this->cancellations_handler, 'show_permanence_legal_text' ), 10, 1 );
