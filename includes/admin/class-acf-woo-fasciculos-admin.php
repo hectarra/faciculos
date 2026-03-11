@@ -29,6 +29,159 @@ class ACF_Woo_Fasciculos_Admin {
      */
     public function __construct( $subscriptions_handler = null ) {
         $this->subscriptions_handler = $subscriptions_handler;
+
+        // Hooks
+        add_action( 'add_meta_boxes', array( $this, 'add_cancellation_reason_meta_box' ) );
+        add_action( 'add_meta_boxes', array( $this, 'add_retention_offers_meta_box' ) );
+        add_action( 'woocommerce_process_shop_subscription_meta', array( $this, 'save_retention_offers_meta_box' ), 10, 2 );
+    }
+
+    /**
+     * Añade un metabox para gestionar las ofertas de retención en los fascículos
+     */
+    public function add_retention_offers_meta_box() {
+        add_meta_box(
+            'fasciculos_retention_offers',
+            __( 'Ofertas de Retención (Fascículos)', 'acf-woo-fasciculos' ),
+            array( $this, 'render_retention_offers_meta_box' ),
+            'shop_subscription',
+            'side',
+            'high'
+        );
+    }
+
+    /**
+     * Renderiza el contenido del metabox de ofertas de retención
+     *
+     * @param WP_Post $post
+     */
+    public function render_retention_offers_meta_box( $post ) {
+        $subscription = wcs_get_subscription( $post->ID );
+
+        if ( ! $subscription ) {
+            return;
+        }
+
+        wp_nonce_field( 'save_retention_offers_' . $post->ID, 'fasciculos_retention_admin_nonce' );
+
+        $active_offer = $subscription->get_meta( '_fasciculos_active_retention_offer' );
+        $current_type = $active_offer ? $active_offer['type'] : '';
+
+        echo '<p>' . esc_html__( 'Selecciona una oferta para aplicarla manualmente o quitarla:', 'acf-woo-fasciculos' ) . '</p>';
+
+        echo '<p>';
+        echo '<label>';
+        echo '<input type="radio" name="fasciculos_manual_offer" value="" ' . checked( $current_type, '', false ) . '> ';
+        echo esc_html__( 'Ninguna (Eliminar ofertas activas)', 'acf-woo-fasciculos' );
+        echo '</label><br><br>';
+
+        echo '<label>';
+        echo '<input type="radio" name="fasciculos_manual_offer" value="after_1st" ' . checked( $current_type, 'after_1st', false ) . '> ';
+        echo esc_html__( 'Oferta 20% de descuento hasta el envío 13', 'acf-woo-fasciculos' );
+        echo '</label><br><br>';
+
+        echo '<label>';
+        echo '<input type="radio" name="fasciculos_manual_offer" value="after_2nd" ' . checked( $current_type, 'after_2nd', false ) . '> ';
+        echo esc_html__( 'Oferta 10% de descuento hasta el envío 5', 'acf-woo-fasciculos' );
+        echo '</label>';
+        echo '</p>';
+
+        if ( $active_offer ) {
+            echo '<hr>';
+            echo '<p><strong>' . esc_html__( 'Estado Actual:', 'acf-woo-fasciculos' ) . '</strong></p>';
+            echo '<p>' . sprintf( __( 'Descuento: %s%%', 'acf-woo-fasciculos' ), $active_offer['discount'] ) . '<br>';
+            echo sprintf( __( 'Objetivo (Permanencia): Envío %s', 'acf-woo-fasciculos' ), $active_offer['target_delivery'] ) . '</p>';
+        }
+    }
+
+    /**
+     * Guarda la configuración del metabox de ofertas de retención
+     *
+     * @param int $post_id
+     * @param WP_Post $post
+     */
+    public function save_retention_offers_meta_box( $post_id, $post ) {
+        if ( ! isset( $_POST['fasciculos_retention_admin_nonce'] ) || ! wp_verify_nonce( $_POST['fasciculos_retention_admin_nonce'], 'save_retention_offers_' . $post_id ) ) {
+            return;
+        }
+
+        $subscription = wcs_get_subscription( $post_id );
+        if ( ! $subscription ) {
+            return;
+        }
+
+        $new_offer_val = isset( $_POST['fasciculos_manual_offer'] ) ? sanitize_text_field( $_POST['fasciculos_manual_offer'] ) : '';
+        $active_offer = $subscription->get_meta( '_fasciculos_active_retention_offer' );
+        $current_type = $active_offer ? $active_offer['type'] : '';
+
+        // Si no hay cambio, no hacer nada
+        if ( $current_type === $new_offer_val ) {
+            return;
+        }
+
+        // Si cambiamos, primero limpiamos lo viejo
+        $old_coupon_code = $subscription->get_meta( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
+        if ( $old_coupon_code ) {
+            $subscription->remove_coupon( $old_coupon_code );
+
+            // Solo borrar físicamente si es un cupón generado por nosotros para esta función
+            if ( strpos( $old_coupon_code, 'retencion-' ) === 0 ) {
+                $old_coupon = new WC_Coupon( $old_coupon_code );
+                if ( $old_coupon->get_id() ) {
+                    $old_coupon->delete( true );
+                }
+            }
+
+            $subscription->delete_meta_data( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON );
+        }
+
+        $subscription->delete_meta_data( '_fasciculos_active_retention_offer' );
+
+        // Si el admin seleccionó "Ninguna", ya hemos limpiado, así que paramos y guardamos.
+        if ( empty( $new_offer_val ) ) {
+            $subscription->calculate_totals();
+            $subscription->save();
+            return;
+        }
+
+        // Si seleccionó una oferta nueva, la construimos
+        $active_index = intval( $subscription->get_meta( ACF_Woo_Fasciculos::META_ACTIVE_INDEX ) );
+
+        $discount_amount = 0;
+        $target_delivery = 0;
+
+        if ( $new_offer_val === 'after_1st' ) {
+            $discount_amount = 20;
+            $target_delivery = 13;
+        } elseif ( $new_offer_val === 'after_2nd' ) {
+            $discount_amount = 10;
+            $target_delivery = 5;
+        }
+
+        if ( $discount_amount > 0 ) {
+            $offer_data = array(
+                'type' => $new_offer_val,
+                'discount' => $discount_amount,
+                'start_index' => $active_index,
+                'target_delivery' => $target_delivery,
+                'total_discounted' => 0
+            );
+            $subscription->update_meta_data( '_fasciculos_active_retention_offer', $offer_data );
+
+            $coupon_code = 'retencion-' . $subscription->get_id() . '-manual-' . wp_generate_password( 4, false );
+            $coupon = new WC_Coupon();
+            $coupon->set_code( $coupon_code );
+            $coupon->set_discount_type( 'percent' );
+            $coupon->set_amount( $discount_amount );
+            $coupon->save();
+
+            $subscription->update_meta_data( ACF_Woo_Fasciculos::META_DISCOUNT_COUPON, $coupon_code );
+            $subscription->apply_coupon( $coupon_code );
+            $subscription->add_order_note( sprintf( __( '✅ Oferta de retención aplicada manualmente desde admin: %d%% de descuento. Permanencia hasta entrega %d.', 'acf-woo-fasciculos' ), $discount_amount, $target_delivery ) );
+        }
+
+        $subscription->calculate_totals();
+        $subscription->save();
     }
 
     /**
@@ -130,8 +283,48 @@ public function show_active_week( $_product, $item, $item_id ) {
         $hidden_meta[] = ACF_Woo_Fasciculos::META_PLAN_CACHE;
         $hidden_meta[] = ACF_Woo_Fasciculos::META_ACTIVE_INDEX;
         $hidden_meta[] = ACF_Woo_Fasciculos::META_FIRST_UPDATE;
+        $hidden_meta[] = '_fasciculo_included';
+        $hidden_meta[] = '_product_item';
+        $hidden_meta[] = '_fasciculos_cancellation_reason';
+        $hidden_meta[] = '_fasciculos_active_retention_offer';
 
         return $hidden_meta;
+    }
+
+    /**
+     * Añade un metabox para mostrar el motivo de cancelación de los fascículos
+     */
+    public function add_cancellation_reason_meta_box() {
+        add_meta_box(
+            'fasciculos_cancellation_reason',
+            __( 'Motivo de Cancelación', 'acf-woo-fasciculos' ),
+            array( $this, 'render_cancellation_reason_meta_box' ),
+            'shop_subscription',
+            'side',
+            'high'
+        );
+    }
+
+    /**
+     * Renderiza el contenido del metabox de motivo de cancelación
+     *
+     * @param WP_Post $post
+     */
+    public function render_cancellation_reason_meta_box( $post ) {
+        $subscription = wcs_get_subscription( $post->ID );
+
+        if ( ! $subscription ) {
+            return;
+        }
+
+        $reason = $subscription->get_meta( '_fasciculos_cancellation_reason' );
+
+        if ( ! empty( $reason ) ) {
+            echo '<p><strong>' . esc_html__( 'Motivo proporcionado por el usuario:', 'acf-woo-fasciculos' ) . '</strong></p>';
+            echo '<p><em>' . esc_html( $reason ) . '</em></p>';
+        } else {
+            echo '<p>' . esc_html__( 'No hay motivo de cancelación registrado.', 'acf-woo-fasciculos' ) . '</p>';
+        }
     }
 
     

@@ -35,6 +35,7 @@ class ACF_Woo_Fasciculos_Tests {
             'includes/core/class-acf-woo-fasciculos-subscriptions.php',
             'includes/core/class-acf-woo-fasciculos-orders.php',
             'includes/core/class-acf-woo-fasciculos-acf.php',
+            'includes/core/class-acf-woo-fasciculos-cancellations.php',
             'includes/admin/class-acf-woo-fasciculos-admin.php',
             'assets/css/acf-woo-fasciculos.css',
             'languages/acf-woo-fasciculos-es_ES.po',
@@ -93,6 +94,7 @@ class ACF_Woo_Fasciculos_Tests {
             'ACF_Woo_Fasciculos_Subscriptions',
             'ACF_Woo_Fasciculos_Orders',
             'ACF_Woo_Fasciculos_ACF',
+            'ACF_Woo_Fasciculos_Cancellations',
             'ACF_Woo_Fasciculos_Admin',
         );
 
