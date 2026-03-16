@@ -176,6 +176,10 @@ function acf_woo_fasciculos_activate() {
 
 	// Place activation logic here (create DB tables, set default options, schedule cron, etc.)
 
+	// Add our custom endpoint BEFORE flushing rules during activation
+	// This ensures the endpoint exists in the newly saved rewrite rules.
+	add_rewrite_endpoint( 'cancelar-fasciculo', EP_ROOT | EP_PAGES );
+
 	// Flush rewrite rules if necessary.
 	flush_rewrite_rules();
 }
