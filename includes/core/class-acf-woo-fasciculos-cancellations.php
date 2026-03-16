@@ -28,12 +28,27 @@ class ACF_Woo_Fasciculos_Cancellations {
     public function add_endpoints() {
         add_rewrite_endpoint( 'cancelar-fasciculo', EP_ROOT | EP_PAGES );
 
-        // Comprobar si hay que hacer flush de las reglas
-        // Actualizamos la opción a v2 para forzar un flush en entornos donde ya existía la versión anterior
-        if ( ! get_option( 'acf_woo_fasciculos_flush_rewrite_rules_v2' ) ) {
+        // Comprobación robusta en tiempo real para evitar errores 404
+        // Si las reglas actuales no incluyen nuestro endpoint, forzamos un flush inmediato.
+        global $wp_rewrite;
+        $rules = $wp_rewrite->wp_rewrite_rules();
+
+        // Buscamos si nuestra regla existe (WordPress la añade al array con una clave que termina en /?$)
+        $endpoint_exists = false;
+        if ( is_array( $rules ) ) {
+            foreach ( $rules as $rule_key => $rule_val ) {
+                if ( strpos( $rule_key, 'cancelar-fasciculo' ) !== false ) {
+                    $endpoint_exists = true;
+                    break;
+                }
+            }
+        }
+
+        // Si no existe, forzamos la regeneración de las reglas.
+        if ( ! $endpoint_exists ) {
+            // Es preferible no llamar flush_rewrite_rules en el init, sino en wp_loaded o admin_init
             add_action( 'wp_loaded', function() {
                 flush_rewrite_rules();
-                update_option( 'acf_woo_fasciculos_flush_rewrite_rules_v2', true );
             } );
         }
     }
